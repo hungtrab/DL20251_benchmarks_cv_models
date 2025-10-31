@@ -161,6 +161,7 @@ def main(args):
     #         raise ValueError("train_dir and test_dir must be specified for models other than linearsvm_mnist")
     #     dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= args.train_dir, test_dir= args.test_dir, input_size= args.input_size, batch_size= args.batch_size)
     result_path = os.path.abspath('results')
+    os.makedirs(result_path, exist_ok=True)
     exp_name = f"{args.dataset}_{args.model_name}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
     if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
@@ -170,8 +171,8 @@ def main(args):
             train_dir = 'data/intel_image/seg_train/seg_train'
             test_dir = 'data/intel_image/seg_test/seg_test'
         elif args.dataset == 'mit':
-            train_dir = 'dataset_playground/indoorCVPR_09/Images'
-            test_dir = 'dataset_playground/indoorCVPR_09/TestImages.txt'
+            train_dir = 'data/mit_indoor/indoorCVPR_09/Images'
+            test_dir = 'data/mit_indoor/TestImages.txt'
         elif args.dataset == 'imagenet':
             train_dir = [
                 'dataset_playground/Imagenet64_train_part1/train_data_batch_1',

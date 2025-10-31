@@ -3,8 +3,8 @@
 # Check if intel_image directory exists
 cd ..
 
-if [ ! -d "data/intel_image" ]; then
-    echo "Intel dataset not found. Downloading..."
+if [ ! -d "data/mit_indoor" ]; then
+    echo "MIT indoor dataset not found. Downloading..."
     
     # Create data directory if it doesn't exist
     mkdir -p data
@@ -13,18 +13,18 @@ if [ ! -d "data/intel_image" ]; then
     pip install -q gdown
     
     # Download the dataset
-    gdown https://drive.google.com/uc?id=1asbLz9GcivwJmfRhBq7eI60LjJAayqMG -O data/intel_image.zip
-    
+    gdown https://drive.google.com/uc?id=17aWl6kKKkgEmt1HmiFkJUZRomRWjApwg -O data/mit_indoor.zip
+
     # Unzip the dataset
     echo "Extracting dataset..."
-    unzip -q data/intel_image.zip -d data/intel_image
-    
+    unzip -q data/mit_indoor.zip -d data/mit_indoor
+
     # Clean up zip file
-    rm data/intel_image.zip
+    rm data/mit_indoor.zip
     
     echo "Dataset downloaded and extracted successfully!"
 else
-    echo "Intel directory already exists."
+    echo "MIT indoor directory already exists."
 fi
 
 # List of models to train
@@ -35,7 +35,7 @@ for model in "${models[@]}"; do
     echo "=========================================="
     echo "Training model: $model"
     echo "=========================================="
-    python train.py --config config/intel_resnet18.json --model_name "$model"
+    python train.py --config config/mit.json --model_name "$model"
     
     # Check if training was successful
     if [ $? -eq 0 ]; then
