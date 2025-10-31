@@ -84,7 +84,7 @@ def parse_args(input_args=None):
     parser.add_argument('--num_epochs', type=int, default=25, help='Number of epochs to train')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--model_name', type=str, default='alexnet',
-                        choices=['linearsvm_mnist', 'alexnet', 'vgg16', 'lenet', 'vgg16', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3', 'vit'],
+                        choices=['linearsvm_mnist', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3', 'vit'],
                         help='Name of the model to use')
     parser.add_argument('--pretrained', action='store_true', help='Use pretrained model weights')
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
