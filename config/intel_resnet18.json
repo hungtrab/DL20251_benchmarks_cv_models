@@ -1,0 +1,24 @@
+{
+  "dataset": {
+    "train_dir": "data/intel_image/seg_train/seg_train",
+    "test_dir": "data/intel_image/seg_test/seg_test",
+    "input_size": 224,
+    "batch_size": 32
+  },
+  "model": {
+    "name": "resnet18",
+    "dropout_rate": 0.4
+  },
+  "train": {
+    "num_epochs": 2,
+    "learning_rate": 0.001,
+    "optimizer": "adam",
+    "criterion": "cross_entropy",
+    "scheduler": "cosine",
+    "num_warmup_steps": 0,
+    "use_class_weights": false,
+    "weight_type": "inverse",
+    "save_path": "best_model.pth",
+    "seed": 42
+  }
+}
