@@ -24,22 +24,21 @@ def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     flat: Dict[str, Any] = {}
     if not isinstance(cfg, dict):
         return flat
-    # Allow both nested sections and top-level keys
+    
+    # Map nested config sections to argparse argument names
     section_map = {
-        'dataset': {
-            'train_dir': 'train_dir',
-            'test_dir': 'test_dir',
-            'mnist_data_dir': 'mnist_data_dir',
+        'dataset_info': {
+            'dataset': 'dataset',
             'input_size': 'input_size',
             'batch_size': 'batch_size',
         },
-        'model': {
+        'model_info': {
             'name': 'model_name',
             'type': 'model_type',
             'dropout_rate': 'dropout_rate',
             'pretrained': 'pretrained',
         },
-        'train': {
+        'train_info': {
             'num_epochs': 'num_epochs',
             'learning_rate': 'learning_rate',
             'optimizer': 'optimizer',
@@ -48,24 +47,27 @@ def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
             'num_warmup_steps': 'num_warmup_steps',
             'use_class_weights': 'use_class_weights',
             'weight_type': 'weight_type',
-            'save_path': 'save_path',
             'seed': 'seed',
         },
     }
+    
+    # Process nested sections
     for section, mapping in section_map.items():
         if section in cfg and isinstance(cfg[section], dict):
             for k, arg_name in mapping.items():
                 if k in cfg[section]:
                     flat[arg_name] = cfg[section][k]
-    # Top-level fallbacks
+    
+    # Also accept top-level keys that match argparse names (for backward compatibility)
     for key in [
-        'train_dir','test_dir','mnist_data_dir','input_size','batch_size',
-        'model_name','model_type','dropout_rate','pretrained',
-        'num_epochs','learning_rate','optimizer','criterion','scheduler',
-        'num_warmup_steps','use_class_weights','weight_type','save_path','seed'
+        'dataset', 'input_size', 'batch_size',
+        'model_name', 'model_type', 'dropout_rate', 'pretrained',
+        'num_epochs', 'learning_rate', 'optimizer', 'criterion', 'scheduler',
+        'num_warmup_steps', 'use_class_weights', 'weight_type', 'seed'
     ]:
         if key in cfg:
             flat[key] = cfg[key]
+    
     return flat
 
 
@@ -96,7 +98,29 @@ def parse_args(input_args=None):
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
 
-    # First parse to get the config path and any CLI overrides
+    # First, parse arguments to identify which were explicitly provided by the user
+    # We'll use parse_known_args to get the namespace and also track what was provided
+    import sys
+    
+    # Determine which arguments were explicitly provided on command line
+    # by checking if they appear in the input arguments
+    if input_args is None:
+        input_args = sys.argv[1:]
+    
+    # Track which arguments were explicitly provided
+    provided_args = set()
+    i = 0
+    while i < len(input_args):
+        arg = input_args[i]
+        if arg.startswith('--'):
+            arg_name = arg[2:]  # Remove '--' prefix
+            # Handle both --arg=value and --arg value formats
+            if '=' in arg_name:
+                arg_name = arg_name.split('=')[0]
+            provided_args.add(arg_name)
+        i += 1
+    
+    # Parse all arguments
     args = parser.parse_args(input_args)
 
     # Merge config values, letting explicit CLI flags override config
@@ -110,15 +134,17 @@ def parse_args(input_args=None):
             except json.JSONDecodeError as e:
                 raise ValueError(f"Failed to parse JSON config: {e}")
         flat_cfg = _flatten_config(raw_cfg)
-        # For each possible key, only set from config if the arg equals its default (not explicitly provided)
-        for dest in flat_cfg:
+        print(f"Loaded config from {cfg_path}: {flat_cfg}")
+        
+        # For each config key, only apply if the argument was NOT explicitly provided by user
+        for dest, value in flat_cfg.items():
             if dest not in vars(args):
                 continue
-            default_val = parser.get_default(dest)
-            current_val = getattr(args, dest)
-            # For store_true flags, default is False; if CLI provided, current_val may be True
-            if current_val == default_val:
-                setattr(args, dest, flat_cfg[dest])
+            # Only set from config if user didn't explicitly provide this argument
+            if dest not in provided_args:
+                setattr(args, dest, value)
+            else:
+                print(f"  CLI override: --{dest} = {getattr(args, dest)} (config has: {value})")
 
     return args
 

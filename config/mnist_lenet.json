@@ -1,13 +1,13 @@
 {
-  "dataset": {
-    "mnist_data_dir": "data/MNIST",
+  "dataset_info": {
+    "dataset": "mnist",
     "batch_size": 64
   },
-  "model": {
+  "model_info": {
     "name": "lenet",
     "dropout_rate": 0.4
   },
-  "train": {
+  "train_info": {
     "num_epochs": 5,
     "learning_rate": 0.001,
     "optimizer": "adam",
@@ -16,7 +16,6 @@
     "num_warmup_steps": 0,
     "use_class_weights": false,
     "weight_type": "inverse",
-    "save_path": "best_model.pth",
     "seed": 42
   }
 }
