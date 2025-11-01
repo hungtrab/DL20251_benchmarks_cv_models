@@ -5,18 +5,53 @@ import numpy as np
 from typing import Type, Any, Callable, Union, List, Optional
 from collections import namedtuple
 
+# #Lenet Model
+# class LeNet(nn.Module):
+#     def __init__(self, num_classes = 10, in_channels = 1):
+#         super(LeNet, self).__init__()
+#         # Các lớp tích chập
+#         self.in_channels = in_channels
+#         self.num_classes = num_classes 
+#         self.conv1 = nn.Conv2d(self.in_channels, 6, kernel_size=5,padding=2)
+#         self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
+#         self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.conv3 = nn.Conv2d(16, 120, kernel_size=5)
+        
+#         # Các lớp fully connected
+#         self.fc1 = nn.Linear(120, 84)
+#         self.fc2 = nn.Linear(84, self.num_classes)
+#     def forward(self, x):
+#         # Các bước truyền dữ liệu qua các lớp
+#         x = self.conv1(x)
+#         x = F.relu(x)
+#         x = self.maxpool1(x)
+#         x = self.conv2(x)
+#         x = F.relu(x)
+#         x = self.maxpool2(x)
+#         x = self.conv3(x)
+#         x = F.relu(x)
+#         x = x.view(x.size(0), -1)
+#         x = self.fc1(x)
+#         x = F.relu(x)
+#         x = self.fc2(x)
+#         return x
+
 #Lenet Model
 class LeNet(nn.Module):
-    def __init__(self, num_classes = 10, in_channels = 1):
+    def __init__(self, num_classes=10, in_channels=3):
         super(LeNet, self).__init__()
         # Các lớp tích chập
         self.in_channels = in_channels
         self.num_classes = num_classes 
-        self.conv1 = nn.Conv2d(self.in_channels, 6, kernel_size=5,padding=2)
+        self.conv1 = nn.Conv2d(self.in_channels, 6, kernel_size=5, padding=2)
         self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv3 = nn.Conv2d(16, 120, kernel_size=5)
+        
+        # Add adaptive pooling to handle different input sizes
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((1, 1))
         
         # Các lớp fully connected
         self.fc1 = nn.Linear(120, 84)
@@ -31,15 +66,67 @@ class LeNet(nn.Module):
         x = self.maxpool2(x)
         x = self.conv3(x)
         x = F.relu(x)
+        x = self.adaptive_pool(x)  # Add adaptive pooling
         x = x.view(x.size(0), -1)
         x = self.fc1(x)
         x = F.relu(x)
         x = self.fc2(x)
         return x
+
+
+# # AlexNet Model
+# class AlexNet(nn.Module):
+#     # input_size = 227
+#     def __init__(self, num_classes=1000, in_channels = 3):
+#         super(AlexNet, self).__init__()
+#         # Các lớp tích chập
+#         self.in_channels = in_channels
+#         self.num_classes = num_classes 
+#         self.features = nn.Sequential(
+#             # Conv1
+#             nn.Conv2d(self.in_channels, 96, kernel_size=11, stride=4, padding=0),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2),
+            
+#             # Conv2
+#             nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2),
+            
+#             # Conv3
+#             nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
+#             nn.ReLU(inplace=True),
+            
+#             # Conv4
+#             nn.Conv2d(384, 384, kernel_size=3, stride=1, padding=1),
+#             nn.ReLU(inplace=True),
+            
+#             # Conv5
+#             nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+#             nn.ReLU(inplace=True),
+#             nn.MaxPool2d(kernel_size=3, stride=2),
+#         )
+        
+#         # Các lớp fully connected
+#         self.classifier = nn.Sequential(
+#             nn.Dropout(p=0.5),
+#             nn.Linear(256 * 6 * 6, 4096),
+#             nn.ReLU(inplace=True),
+#             nn.Dropout(p=0.5),
+#             nn.Linear(4096, 4096),
+#             nn.ReLU(inplace=True),
+#             nn.Linear(4096, self.num_classes),
+#         )
+
+#     def forward(self, x):
+#         x = self.features(x)
+#         x = x.view(x.size(0), -1)
+#         x = self.classifier(x)
+#         return x
+    
 # AlexNet Model
 class AlexNet(nn.Module):
-    # input_size = 227
-    def __init__(self, num_classes=1000, in_channels = 3):
+    def __init__(self, num_classes=1000, in_channels=3):
         super(AlexNet, self).__init__()
         # Các lớp tích chập
         self.in_channels = in_channels
@@ -69,6 +156,9 @@ class AlexNet(nn.Module):
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
         
+        # Add adaptive average pooling to handle different input sizes
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        
         # Các lớp fully connected
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
@@ -82,10 +172,11 @@ class AlexNet(nn.Module):
 
     def forward(self, x):
         x = self.features(x)
+        x = self.avgpool(x)  # Add adaptive pooling
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
-    
+
 class VGG16(nn.Module):
     def __init__(self, num_classes=1000, in_channels = 3, dropout_rate=0.5, input_size = 227):
         super(VGG16, self).__init__()
@@ -727,6 +818,84 @@ class AuxiliaryClassifier(nn.Module):
 
 InceptionOutput = namedtuple('InceptionOutput', ['logits', 'aux_logits'])
 
+# class InceptionV3(nn.Module):
+#     def __init__(self, num_classes = 1000, in_channels = 3, aux_logits = True):
+#         super().__init__()
+#         self.aux_logits = aux_logits
+#         self.num_classes = num_classes
+#         self.in_channels = in_channels
+        
+#         self.conv1_3x3 = BasicConv2d(self.in_channels, 32, kernel_size=3, stride=2)
+#         self.conv2a_3x3 = BasicConv2d(32, 32, kernel_size=3)
+#         self.conv2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding = 1)
+#         self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2)
+        
+#         self.conv3a_3x3 = BasicConv2d(64, 80, kernel_size=1)
+#         self.conv3b_3x3 = BasicConv2d(80, 192, kernel_size=3)
+#         self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2)
+        
+#         self.mixed_5a = InceptionA(in_channels=192, pool_features=32)
+#         self.mixed_5b = InceptionA(in_channels=256, pool_features=64)
+#         self.mixed_5c = InceptionA(in_channels=288, pool_features=64)
+        
+#         self.mixed_6a = InceptionB(in_channels=288)
+#         self.mixed_6b = InceptionC(in_channels=768, channel_7=128)
+#         self.mixed_6c = InceptionC(in_channels=768, channel_7=160)
+#         self.mixed_6d = InceptionC(in_channels=768, channel_7=160)
+#         self.mixed_6e = InceptionC(in_channels=768, channel_7=192)
+        
+#         if self.aux_logits:
+#             self.aux_classifier = AuxiliaryClassifier(in_channels=768, num_classes=self.num_classes)
+            
+#         self.mixed_7a = InceptionD(in_channels=768)
+#         self.mixed_7b = InceptionE(in_channels=1280)
+#         self.mixed_7c = InceptionE(in_channels=2048)
+        
+#         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+#         self.dropout = nn.Dropout(p=0.4)
+#         self.fc = nn.Linear(2048, self.num_classes)
+        
+#     def forward(self, x):
+#         x = self.conv1_3x3(x)
+#         x = self.conv2a_3x3(x)
+#         x = self.conv2b_3x3(x)
+#         x = self.maxpool1(x)
+#         # print(x.shape)
+        
+#         x = self.conv3a_3x3(x)
+#         x = self.conv3b_3x3(x)
+#         x = self.maxpool2(x)
+#         # print(x.shape)
+        
+#         x = self.mixed_5a(x)
+#         x = self.mixed_5b(x)
+#         x = self.mixed_5c(x)
+#         # print(x.shape)
+        
+#         x = self.mixed_6a(x)
+#         x = self.mixed_6b(x)
+#         x = self.mixed_6c(x)
+#         x = self.mixed_6d(x)
+#         x = self.mixed_6e(x)
+#         # print(x.shape)
+        
+#         if self.aux_logits:
+#             input_aux = x
+#             aux = self.aux_classifier(input_aux)
+        
+#         x = self.mixed_7a(x)
+#         x = self.mixed_7b(x)
+#         x = self.mixed_7c(x)
+#         # print(x.shape)
+        
+#         x = self.avgpool(x)
+#         x = torch.flatten(x, 1)
+#         x = self.dropout(x)
+#         x = self.fc(x)
+#         if self.training and self.aux_logits:
+#             return InceptionOutput(x, aux)
+#         return x 
+        
 class InceptionV3(nn.Module):
     def __init__(self, num_classes = 1000, in_channels = 3, aux_logits = True):
         super().__init__()
@@ -734,14 +903,15 @@ class InceptionV3(nn.Module):
         self.num_classes = num_classes
         self.in_channels = in_channels
         
-        self.conv1_3x3 = BasicConv2d(self.in_channels, 32, kernel_size=3, stride=2)
-        self.conv2a_3x3 = BasicConv2d(32, 32, kernel_size=3)
-        self.conv2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding = 1)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2)
+        # Add padding to initial layers to handle various input sizes
+        self.conv1_3x3 = BasicConv2d(self.in_channels, 32, kernel_size=3, stride=2, padding=1)
+        self.conv2a_3x3 = BasicConv2d(32, 32, kernel_size=3, padding=1)
+        self.conv2b_3x3 = BasicConv2d(32, 64, kernel_size=3, padding=1)
+        self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         
         self.conv3a_3x3 = BasicConv2d(64, 80, kernel_size=1)
-        self.conv3b_3x3 = BasicConv2d(80, 192, kernel_size=3)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.conv3b_3x3 = BasicConv2d(80, 192, kernel_size=3, padding=1)
+        self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         
         self.mixed_5a = InceptionA(in_channels=192, pool_features=32)
         self.mixed_5b = InceptionA(in_channels=256, pool_features=64)
@@ -804,7 +974,7 @@ class InceptionV3(nn.Module):
         if self.training and self.aux_logits:
             return InceptionOutput(x, aux)
         return x 
-        
+
 # Vision Transformer (ViT) model
 class TransformerBlock(nn.Module):
     def __init__(self, emb_dim, num_heads, ratio_dim, dropout_rate):
@@ -1081,4 +1251,186 @@ class MobileNetV3(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
+
+#---------------------------- EfficientNetV2 Model ----------------------------#
+
+Eff_V2_SETTINGS = {
+    # expansion factor, k, stride, n_in, n_out, num_layers, use_fusedMBCONV
+    's' : [
+        [1, 3, 1, 24, 24, 2, True],
+        [4, 3, 2, 24, 48, 4, True],
+        [4, 3, 2, 48, 64, 4, True],
+        [4, 3, 2, 64, 128, 6, False],
+        [6, 3, 1, 128, 160, 9, False],
+        [6, 3, 2, 160, 256, 15, False]
+    ],
+    
+    'm' : [
+        [1, 3, 1, 24, 24, 3, True],
+        [4, 3, 2, 24, 48, 5, True],
+        [4, 3, 2, 48, 80, 5, True],
+        [4, 3, 2, 80, 160, 7, False],
+        [6, 3, 1, 160, 176, 14, False],
+        [6, 3, 2, 176, 304, 18, False],
+        [6, 3, 1, 304, 512, 5, False]
+    ],
+        'l' : [
+        [1, 3, 1, 32, 32, 4, True],
+        [4, 3, 2, 32, 64, 7, True],
+        [4, 3, 2, 64, 96, 7, True],
+        [4, 3, 2, 96, 192, 10, False],
+        [6, 3, 1, 192, 224, 19, False],
+        [6, 3, 2, 224, 384, 25, False],
+        [6, 3, 1, 384, 640, 7, False]
+    ]
+}
+
+class ConvBnAct(nn.Module):
+    def __init__(self, n_in, n_out, k_size, stride=1, padding=0, groups=1, act=True, bn=True, bias=False):
+        super(ConvBnAct, self).__init__()
+        self.conv = nn.Conv2d(
+            in_channels=n_in, 
+            out_channels=n_out,
+            kernel_size=k_size,
+            stride=stride,
+            padding=padding,
+            groups=groups,
+            bias=bias
+        )
+        self.batch_norm = nn.BatchNorm2d(n_out) if bn else nn.Identity()
+        self.activation = nn.SiLU() if act else nn.Identity()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.batch_norm(x)
+        x = self.activation(x)
+        return x
+    
+# Squeeze & Excitation
+class SqueezeExcitation(nn.Module):
+    def __init__(self, n_in, reduce_dim):
+        super(SqueezeExcitation, self).__init__()
+        self.squeeze = nn.AdaptiveAvgPool2d(1)
+        self.excite = nn.Sequential(
+            nn.Conv2d(n_in, reduce_dim, kernel_size=1),
+            nn.SiLU(),
+            nn.Conv2d(reduce_dim, n_in, kernel_size=1),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        y = self.squeeze(x)
+        x = self.excite(y)
+        return x * y
+    
+#Stochastic Depth Class
+class StochasticDepth(nn.Module):
+    def __init__(self, survival_prob = 0.8):
+        super(StochasticDepth, self).__init__()
+        self.p =  survival_prob
+        
+    def forward(self, x):
+        if not self.training:
+            return x
+        binary_tensor = torch.rand(x.shape[0], 1, 1, 1, device=x.device) < self.p
+        return torch.div(x, self.p) * binary_tensor
+    
+
+# MBConv class
+class MBConv(nn.Module):
+    def __init__(self, 
+                 n_in, 
+                 n_out, 
+                 k_size=3, 
+                 stride=1,
+                 expansion_factor=4, 
+                 reduction_factor=4, # squeeze excitation block
+                 survival_prob=0.8): # stochastic depth block
+        super(MBConv, self).__init__()
+        reduced_dim = int(n_in // 4)
+        expanded_dim = int(expansion_factor * n_in)
+        padding = (k_size - 1) // 2
+
+        self.use_residual = (n_in == n_out) and (stride == 1)
+        self.expand = nn.Identity() if (expansion_factor == 1) else ConvBnAct(n_in, expanded_dim, k_size=1)
+        self.depthwise_conv = ConvBnAct(expanded_dim, expanded_dim, k_size, stride=stride, padding=padding, groups=expanded_dim)
+        self.se = SqueezeExcitation(expanded_dim, reduced_dim)
+        self.drop_layers = StochasticDepth(survival_prob)
+        self.pointwise_conv = ConvBnAct(expanded_dim, n_out, k_size=1, act=False)
+
+    def forward(self, x):
+        residual = x.clone()
+        x = self.expand(x)
+        x = self.depthwise_conv(x)
+        x = self.se(x)
+        x = self.pointwise_conv(x)
+
+        if self.use_residual:
+            x = self.drop_layers(x)
+            x += residual
+
+        return x
+    
+# Fuse-MBConv
+class FusedMBConv(nn.Module):
+    def __init__(self, n_in, n_out, k_size=3, stride=1, expansion_factor=4, reduction_factor=4, survival_prob=0.8):
+        super(FusedMBConv, self).__init__()
+        reduced_dim = int(n_in // 4)
+        expanded_dim = int(expansion_factor * n_in)
+        padding = (k_size - 1) // 2
+
+        self.use_residual = (n_in == n_out) and (stride == 1)
+        self.conv = ConvBnAct(n_in, expanded_dim, k_size, stride=stride, padding=padding, groups=1)
+        self.drop_layers = StochasticDepth(survival_prob)
+        self.pointwise_conv = nn.Identity() if (expansion_factor == 1) else ConvBnAct(expanded_dim, n_out, k_size=1, act=False)
+
+    def forward(self, x):
+        residual = x.clone()
+        x = self.conv(x)
+        x = self.pointwise_conv(x)
+
+        if self.use_residual:
+            x = self.drop_layers(x)
+            x += residual
             
+        return x
+    
+class EfficientNetV2(nn.Module):
+    def __init__(self, version='s', dropout_rate=0.2, num_classes=1000):
+        super(EfficientNetV2, self).__init__()
+        last_channel = 1280
+        self.features = self._feature_extractor(version, last_channel)
+        self.classifier = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Dropout(dropout_rate, inplace=True),
+            nn.Linear(last_channel, num_classes)
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        
+        return x
+    
+    def _feature_extractor(self, version, last_channel):
+        config = Eff_V2_SETTINGS[version]
+        layer = []
+        layer.append(ConvBnAct(3, config[0][3], k_size=3, stride=2, padding=1))
+
+        for (expansion_factor, k, stride, n_in, n_out, num_layers, use_fused) in config:
+            if use_fused:
+                layer += [FusedMBConv(n_in if repeat == 0 else n_out, 
+                                        n_out, 
+                                        k_size=k, 
+                                        stride=stride if repeat == 0 else 1,
+                                        expansion_factor=expansion_factor) for repeat in range(num_layers)]
+            else:
+                layer += [MBConv(n_in if repeat==0 else n_out, 
+                                    n_out,
+                                    k_size=k,
+                                    stride = stride if repeat==0 else 1,
+                                    expansion_factor=expansion_factor) for repeat in range(num_layers)]
+
+        layer.append(ConvBnAct(config[-1][4], last_channel, k_size = 1))   
+            
+        return nn.Sequential(*layer)

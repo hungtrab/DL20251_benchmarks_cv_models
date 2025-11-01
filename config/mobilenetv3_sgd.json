@@ -1,0 +1,23 @@
+{
+  "dataset_info": {
+    "dataset": "intel",
+    "input_size": 224,
+    "batch_size": 32
+  },
+  "model_info": {
+    "name": "mobilenetv3",
+    "model_type": "large",
+    "dropout_rate": 0.2
+  },
+  "train_info": {
+    "num_epochs": 25,
+    "learning_rate": 0.1,
+    "optimizer": "sgd",
+    "criterion": "cross_entropy",
+    "scheduler": "cosine",
+    "num_warmup_steps": 0,
+    "use_class_weights": false,
+    "weight_type": "inverse",
+    "seed": 42
+  }
+}

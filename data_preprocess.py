@@ -356,6 +356,7 @@ def prepare_builtin_data(data_dir, batch_size, dataset='mnist'):
     # Define transforms based on dataset
     if dataset == 'mnist':
         transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor(),
             transforms.Normalize((0.1307,), (0.3081,)), 
         ])

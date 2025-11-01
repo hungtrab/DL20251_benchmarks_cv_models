@@ -84,7 +84,7 @@ def parse_args(input_args=None):
     parser.add_argument('--num_epochs', type=int, default=25, help='Number of epochs to train')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--model_name', type=str, default='alexnet',
-                        choices=['linearsvm_mnist', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3', 'vit'],
+                        choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit'],
                         help='Name of the model to use')
     parser.add_argument('--pretrained', action='store_true', help='Use pretrained model weights')
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
@@ -92,7 +92,6 @@ def parse_args(input_args=None):
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'adamw', 'sgd'], help='Optimizer to use')
     parser.add_argument('--scheduler', type=str, default='constant', choices=['constant', 'linear', 'cosine'], help='Learning rate scheduler to use')
     parser.add_argument('--num_warmup_steps', type=int, default=0, help='Number of warmup steps for the scheduler')
-    parser.add_argument('--model_type', type=str, default='large', choices=['large', 'small'], help='Model type of MobileNetV3')
     parser.add_argument('--dropout_rate', type=float, default=0.4, help='Dropout rate for model')
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
@@ -165,7 +164,7 @@ def main(args):
     exp_name = f"{args.dataset}_{args.model_name}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
     if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
-        dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=args.dataset, batch_size=args.batch_size, dataset=args.dataset)
+        dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
     elif args.dataset in ['intel', 'mit', 'imagenet']:
         if args.dataset == 'intel':
             train_dir = 'data/intel_image/seg_train/seg_train'
@@ -175,12 +174,19 @@ def main(args):
             test_dir = 'data/mit_indoor/TestImages.txt'
         elif args.dataset == 'imagenet':
             train_dir = [
-                'dataset_playground/Imagenet64_train_part1/train_data_batch_1',
-                # 'dataset_playground/Imagenet64_train_part1/train_data_batch_2',
-                # 'dataset_playground/Imagenet64_train_part1/train_data_batch_3',
+                'data/imagenet/train_data_batch_1',
+                'data/imagenet/train_data_batch_2',
+                'data/imagenet/train_data_batch_3',
+                'data/imagenet/train_data_batch_4',
+                'data/imagenet/train_data_batch_5',
+                'data/imagenet/train_data_batch_6',
+                'data/imagenet/train_data_batch_7',
+                'data/imagenet/train_data_batch_8',
+                'data/imagenet/train_data_batch_9',
+                'data/imagenet/train_data_batch_10',
             ]
             test_dir = [
-                'dataset_playground/Imagenet64_train_part1/train_data_batch_4',
+                'data/imagenet/val_data',
             ]
         dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= train_dir, test_dir= test_dir, input_size= args.input_size, batch_size= args.batch_size, dataset=args.dataset)
     else:
@@ -206,13 +212,21 @@ def main(args):
         model = resnet101(num_classes= num_classes, in_channels= 3)
     elif args.model_name == 'inceptionv3':
         model = InceptionV3(num_classes=num_classes, in_channels=3)
-    elif args.model_name == 'mobilenetv3':
-        model = MobileNetV3(mode = args.model_type, num_classes = num_classes, dropout=args.dropout_rate)
+    elif args.model_name == 'mobilenetv3_s':
+        model = MobileNetV3(mode = 'small', num_classes = num_classes, dropout=args.dropout_rate)
+    elif args.model_name == 'mobilenetv3_l':
+        model = MobileNetV3(mode = 'large', num_classes = num_classes, dropout=args.dropout_rate)
     elif args.model_name == 'vit':
         model = VisionTransformer(num_classes = num_classes, dropout_rate= args.dropout_rate)
+    elif args.model_name == 'efficientnetv2_s':
+        model = EfficientNetV2(version='s', num_classes=num_classes, dropout_rate=args.dropout_rate)
+    elif args.model_name == 'efficientnetv2_m':
+        model = EfficientNetV2(version='m', num_classes=num_classes, dropout_rate=args.dropout_rate)
+    elif args.model_name == 'efficientnetv2_l':
+        model = EfficientNetV2(version='l', num_classes=num_classes, dropout_rate=args.dropout_rate)
     else:
         raise ValueError(f"Model {args.model_name} not recognized.")
-    print(f"Model: {model}")
+    # print(f"Model: {model}")
     if args.optimizer == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
     elif args.optimizer == 'sgd':

@@ -1,0 +1,22 @@
+{
+  "dataset_info": {
+    "dataset": "intel",
+    "input_size": 224,
+    "batch_size": 16
+  },
+  "model_info": {
+    "name": "vgg16_bn",
+    "dropout_rate": 0.5
+  },
+  "train_info": {
+    "num_epochs": 25,
+    "learning_rate": 0.01,
+    "optimizer": "sgd",
+    "criterion": "cross_entropy",
+    "scheduler": "cosine",
+    "num_warmup_steps": 0,
+    "use_class_weights": false,
+    "weight_type": "inverse",
+    "seed": 42
+  }
+}

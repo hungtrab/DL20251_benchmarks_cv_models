@@ -1,0 +1,21 @@
+{
+  "dataset_info": {
+    "dataset": "mnist",
+    "batch_size": 64
+  },
+  "model_info": {
+    "name": "lenet",
+    "dropout_rate": 0.4
+  },
+  "train_info": {
+    "num_epochs": 10,
+    "learning_rate": 0.001,
+    "optimizer": "adamw",
+    "criterion": "cross_entropy",
+    "scheduler": "constant",
+    "num_warmup_steps": 0,
+    "use_class_weights": false,
+    "weight_type": "inverse",
+    "seed": 42
+  }
+}
