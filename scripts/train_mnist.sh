@@ -2,7 +2,7 @@
 cd ..
 
 # List of models to train
-models=("lenet" "alexnet")
+models=("lenet" "alexnet" "resnet18" "resnet34" "resnet50" "vgg16" "mobilenetv3" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "resnet101" "inceptionv3" "vgg16_bn")
 
 # Loop through each model and train
 for model in "${models[@]}"; do

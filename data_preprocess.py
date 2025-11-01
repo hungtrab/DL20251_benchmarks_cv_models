@@ -367,6 +367,7 @@ def prepare_builtin_data(data_dir, batch_size, dataset='mnist'):
         
     elif dataset == 'fashionmnist':
         transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=3),
             transforms.ToTensor(),
             transforms.Normalize((0.2860,), (0.3530,)),  # FashionMNIST mean and std
         ])
