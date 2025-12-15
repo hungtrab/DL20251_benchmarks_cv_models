@@ -1,0 +1,11 @@
+python ../train.py \
+  --dataset intel \
+  --model_name convnextv2_base \
+  --checkpoint_path results_pretrain/intel_image_pretrain_v1/checkpoint_encoder_final.pth \
+  --input_size 224 \
+  --batch_size 32 \
+  --num_epochs 20 \
+  --learning_rate 5e-5 \
+  --optimizer adamw \
+  --scheduler cosine \
+  --num_warmup_steps 100d
