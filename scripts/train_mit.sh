@@ -36,7 +36,7 @@ for model in "${models[@]}"; do
         echo "=========================================="
         echo "Training model: $model with optimizer: $optimizer"
         echo "=========================================="
-        python train.py --config config/${model}_${optimizer}.json --dataset mit_indoor --input_size 224 --batch_size 32
+        python train.py --config config/${model}_${optimizer}.json --dataset mit --input_size 224 --batch_size 32
         
         # Check if training was successful
         if [ $? -eq 0 ]; then
