@@ -42,7 +42,7 @@ def calculate_class_weights(class_counts, weight_type = 'inverse'):
 
 class Trainer:
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, scheduler = None, 
-                 device = None, num_epochs = 25, save_path = None):
+                 device = None, num_epochs = 25, save_path = None, wandb_run = None):
         super().__init__()
         self.dataloaders = dataloaders
         self.dataset_sizes = dataset_sizes
@@ -52,6 +52,7 @@ class Trainer:
         self.device = device if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.num_epochs = num_epochs
         self.save_path = save_path
+        self.wandb_run = wandb_run
         self.best_model = copy.deepcopy(model.state_dict())
         self.best_acc = 0.0
         self.best_val_loss = float('inf')
@@ -65,6 +66,12 @@ class Trainer:
     
     def train(self):
         since = time.time()
+        # Watch model gradients/parameters if using W&B
+        if self.wandb_run is not None:
+            try:
+                self.wandb_run.watch(self.model, log="gradients", log_freq=100)
+            except Exception:
+                pass
         for epoch in range(self.num_epochs):
             print(f'Epoch {epoch+1}/{self.num_epochs}')
             print('-' * 10)
@@ -120,6 +127,21 @@ class Trainer:
                 else:
                     self.history['val_loss'].append(epoch_loss)
                     self.history['val_acc'].append(epoch_acc.item())
+                
+                # Log epoch metrics to W&B
+                if self.wandb_run is not None:
+                    log_payload = {
+                        f'{phase}/loss': float(epoch_loss),
+                        f'{phase}/acc': float(epoch_acc),
+                        'epoch': epoch + 1,
+                    }
+                    # Log learning rate for train phase
+                    if phase == 'train' and len(self.optimizer.param_groups) > 0:
+                        log_payload['lr'] = float(self.optimizer.param_groups[0].get('lr', 0.0))
+                    try:
+                        self.wandb_run.log(log_payload)
+                    except Exception:
+                        pass
                     
                 if phase == 'test':
                     if epoch_acc > self.best_acc:
@@ -131,6 +153,15 @@ class Trainer:
                         if self.save_path:
                             torch.save(self.model.state_dict(), self.save_path)
                             print(f"Model saved to {self.save_path}")
+                            # Log best model checkpoint path
+                            if self.wandb_run is not None:
+                                try:
+                                    self.wandb_run.log({
+                                        'best/val_loss': float(self.best_val_loss),
+                                        'best/val_acc': float(self.best_acc)
+                                    })
+                                except Exception:
+                                    pass
                 print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
                 
                         
@@ -141,6 +172,12 @@ class Trainer:
         print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
         print(f'Best test Acc: {self.best_acc:.4f}')
         print(f'Best test Loss: {self.best_val_loss:.4f}')
+        if self.wandb_run is not None:
+            try:
+                self.wandb_run.summary['best_val_acc'] = float(self.best_acc)
+                self.wandb_run.summary['best_val_loss'] = float(self.best_val_loss)
+            except Exception:
+                pass
         
         self.model.load_state_dict(self.best_model)
         return self.model, self.history

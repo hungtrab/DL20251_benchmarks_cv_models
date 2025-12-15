@@ -96,6 +96,11 @@ def parse_args(input_args=None):
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    # W&B logging options
+    parser.add_argument('--use_wandb', action='store_true', help='Enable Weights & Biases logging')
+    parser.add_argument('--wandb_project', type=str, default='dl20251-cv', help='W&B project name')
+    parser.add_argument('--wandb_entity', type=str, default=None, help='W&B entity (team or username)')
+    parser.add_argument('--wandb_run_name', type=str, default=None, help='W&B run name (defaults to experiment name)')
 
     # First, parse arguments to identify which were explicitly provided by the user
     # We'll use parse_known_args to get the namespace and also track what was provided
@@ -163,6 +168,22 @@ def main(args):
     os.makedirs(result_path, exist_ok=True)
     exp_name = f"{args.dataset}_{args.model_name}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
+    # Initialize W&B if requested
+    wandb_run = None
+    if getattr(args, 'use_wandb', False):
+        try:
+            import wandb
+            run_name = args.wandb_run_name or exp_name
+            wandb_run = wandb.init(
+                project=args.wandb_project,
+                entity=args.wandb_entity,
+                name=run_name,
+                config=vars(args),
+                dir=os.path.join(result_path, exp_name),
+            )
+        except Exception as e:
+            print(f"W&B init failed: {e}. Continuing without W&B.")
+            wandb_run = None
     if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
     elif args.dataset in ['intel', 'mit', 'imagenet']:
@@ -288,12 +309,42 @@ def main(args):
             milestones=[warmup_steps, warmup_steps + steady_steps]
         )
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
-    trainer = Trainer(model, dataloaders= dataloaders, dataset_sizes=dataset_sizes, criterion=criterion, optimizer=optimizer, scheduler=scheduler, device=device, num_epochs=args.num_epochs, save_path=best_model_path)
+    trainer = Trainer(
+        model,
+        dataloaders=dataloaders,
+        dataset_sizes=dataset_sizes,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        device=device,
+        num_epochs=args.num_epochs,
+        save_path=best_model_path,
+        wandb_run=wandb_run,
+    )
     model, history = trainer.train()
     # trainer.plot_history()
-    trainer.save_history(os.path.join(result_path, exp_name, 'training_history.json'))
-    trainer.save_plot_image(os.path.join(result_path, exp_name, 'training_history.png'))
+    hist_json = os.path.join(result_path, exp_name, 'training_history.json')
+    hist_png = os.path.join(result_path, exp_name, 'training_history.png')
+    trainer.save_history(hist_json)
+    trainer.save_plot_image(hist_png)
+    # Log artifacts/images to W&B
+    if wandb_run is not None:
+        try:
+            import wandb
+            if os.path.exists(hist_png):
+                wandb_run.log({"plots/training_history": wandb.Image(hist_png)})
+            if os.path.exists(best_model_path):
+                art = wandb.Artifact(name=f"{exp_name}_best_model", type="model")
+                art.add_file(best_model_path)
+                wandb_run.log_artifact(art)
+        except Exception as e:
+            print(f"W&B logging artifacts failed: {e}")
     evaluate_model(model, dataloaders['test'], num_class = num_classes, save_path=os.path.join(result_path, exp_name))
+    if wandb_run is not None:
+        try:
+            wandb_run.finish()
+        except Exception:
+            pass
 if __name__ == "__main__":
     args = parse_args()
     main(args)
