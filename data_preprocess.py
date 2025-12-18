@@ -399,6 +399,7 @@ def prepare_builtin_data(data_dir, batch_size, dataset='mnist'):
         
     elif dataset == 'caltech101':
         transform = transforms.Compose([
+            transforms.Lambda(lambda x: x.convert("RGB")),
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])

@@ -2,3 +2,5 @@ dataset_playground/
 __pycache__/
 data/mit_indoor/*
 data/imagenet/*
+results/
+logs/

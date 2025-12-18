@@ -42,7 +42,7 @@ def calculate_class_weights(class_counts, weight_type = 'inverse'):
 
 class Trainer:
     def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, scheduler = None, 
-                 device = None, num_epochs = 25, save_path = None, wandb_run = None):
+                 device = None, num_epochs = 25, save_path = None, wandb_run = None, tb_writer = None):
         super().__init__()
         self.dataloaders = dataloaders
         self.dataset_sizes = dataset_sizes
@@ -53,6 +53,7 @@ class Trainer:
         self.num_epochs = num_epochs
         self.save_path = save_path
         self.wandb_run = wandb_run
+        self.tb_writer = tb_writer
         self.best_model = copy.deepcopy(model.state_dict())
         self.best_acc = 0.0
         self.best_val_loss = float('inf')
@@ -140,6 +141,17 @@ class Trainer:
                         log_payload['lr'] = float(self.optimizer.param_groups[0].get('lr', 0.0))
                     try:
                         self.wandb_run.log(log_payload)
+                    except Exception:
+                        pass
+                
+                # Log epoch metrics to TensorBoard
+                if self.tb_writer is not None:
+                    try:
+                        self.tb_writer.add_scalar(f'{phase}/loss', float(epoch_loss), epoch + 1)
+                        self.tb_writer.add_scalar(f'{phase}/acc', float(epoch_acc), epoch + 1)
+                        # Log learning rate for train phase
+                        if phase == 'train' and len(self.optimizer.param_groups) > 0:
+                            self.tb_writer.add_scalar('lr', float(self.optimizer.param_groups[0].get('lr', 0.0)), epoch + 1)
                     except Exception:
                         pass
                     
