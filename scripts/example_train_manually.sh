@@ -5,4 +5,10 @@ python train.py \
     --num_epochs=1 \
     --learning_rate=1e-4 \
     --model_name="resnet18" \
-    --dropout_rate=0.4 
+    --dropout_rate=0.4 \
+    --optimizer='adam' \
+    --use_tensorboard \
+    --tensorboard_log_dir='results/tensorboard/example_run' \
+    --use_wandb \
+    --wandb_project='dl20251-cv' \
+    --wandb_run_name='example_run_intel'

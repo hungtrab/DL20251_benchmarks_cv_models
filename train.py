@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR, ConstantLR
 from evaluate import evaluate_model
+from torch.utils.tensorboard import SummaryWriter
 
 def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Flatten a nested config into argparse-compatible keys.
@@ -96,6 +97,14 @@ def parse_args(input_args=None):
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    # W&B logging options
+    parser.add_argument('--use_wandb', action='store_true', help='Enable Weights & Biases logging')
+    parser.add_argument('--wandb_project', type=str, default='dl20251-cv', help='W&B project name')
+    parser.add_argument('--wandb_entity', type=str, default=None, help='W&B entity (team or username)')
+    parser.add_argument('--wandb_run_name', type=str, default=None, help='W&B run name (defaults to experiment name)')
+    # TensorBoard logging options
+    parser.add_argument('--use_tensorboard', action='store_true', help='Enable TensorBoard logging')
+    parser.add_argument('--tensorboard_log_dir', type=str, default='logs', help='TensorBoard log directory')
 
     # First, parse arguments to identify which were explicitly provided by the user
     # We'll use parse_known_args to get the namespace and also track what was provided
@@ -161,8 +170,38 @@ def main(args):
     #     dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= args.train_dir, test_dir= args.test_dir, input_size= args.input_size, batch_size= args.batch_size)
     result_path = os.path.abspath('results')
     os.makedirs(result_path, exist_ok=True)
-    exp_name = f"{args.dataset}_{args.model_name}_{time.strftime('%Y%m%d_%H%M%S')}"
+    exp_name = f"{args.dataset}_{args.model_name}_{args.optimizer}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
+    
+    # Initialize TensorBoard if requested
+    tb_writer = None
+    if getattr(args, 'use_tensorboard', False):
+        tb_log_dir = os.path.join(args.tensorboard_log_dir, exp_name)
+        os.makedirs(tb_log_dir, exist_ok=True)
+        tb_writer = SummaryWriter(log_dir=tb_log_dir)
+        # Save configuration to logs folder
+        config_save_path = os.path.join(tb_log_dir, 'config.json')
+        with open(config_save_path, 'w') as f:
+            json.dump(vars(args), f, indent=2)
+        print(f"TensorBoard logs will be saved to: {tb_log_dir}")
+        print(f"Configuration saved to: {config_save_path}")
+    
+    # Initialize W&B if requested
+    wandb_run = None
+    if getattr(args, 'use_wandb', False):
+        try:
+            import wandb
+            run_name = args.wandb_run_name or exp_name
+            wandb_run = wandb.init(
+                project=args.wandb_project,
+                entity=args.wandb_entity,
+                name=run_name,
+                config=vars(args),
+                dir=os.path.join(result_path, exp_name),
+            )
+        except Exception as e:
+            print(f"W&B init failed: {e}. Continuing without W&B.")
+            wandb_run = None
     if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
     elif args.dataset in ['intel', 'mit', 'imagenet']:
@@ -175,15 +214,15 @@ def main(args):
         elif args.dataset == 'imagenet':
             train_dir = [
                 'data/imagenet/train_data_batch_1',
-                'data/imagenet/train_data_batch_2',
-                'data/imagenet/train_data_batch_3',
-                'data/imagenet/train_data_batch_4',
-                'data/imagenet/train_data_batch_5',
-                'data/imagenet/train_data_batch_6',
-                'data/imagenet/train_data_batch_7',
-                'data/imagenet/train_data_batch_8',
-                'data/imagenet/train_data_batch_9',
-                'data/imagenet/train_data_batch_10',
+                # 'data/imagenet/train_data_batch_2',
+                # 'data/imagenet/train_data_batch_3',
+                # 'data/imagenet/train_data_batch_4',
+                # 'data/imagenet/train_data_batch_5',
+                # 'data/imagenet/train_data_batch_6',
+                # 'data/imagenet/train_data_batch_7',
+                # 'data/imagenet/train_data_batch_8',
+                # 'data/imagenet/train_data_batch_9',
+                # 'data/imagenet/train_data_batch_10',
             ]
             test_dir = [
                 'data/imagenet/val_data',
@@ -288,12 +327,66 @@ def main(args):
             milestones=[warmup_steps, warmup_steps + steady_steps]
         )
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
-    trainer = Trainer(model, dataloaders= dataloaders, dataset_sizes=dataset_sizes, criterion=criterion, optimizer=optimizer, scheduler=scheduler, device=device, num_epochs=args.num_epochs, save_path=best_model_path)
+    trainer = Trainer(
+        model,
+        dataloaders=dataloaders,
+        dataset_sizes=dataset_sizes,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        device=device,
+        num_epochs=args.num_epochs,
+        save_path=best_model_path,
+        wandb_run=wandb_run,
+        tb_writer=tb_writer,
+    )
     model, history = trainer.train()
     # trainer.plot_history()
-    trainer.save_history(os.path.join(result_path, exp_name, 'training_history.json'))
-    trainer.save_plot_image(os.path.join(result_path, exp_name, 'training_history.png'))
+    hist_json = os.path.join(result_path, exp_name, 'training_history.json')
+    hist_png = os.path.join(result_path, exp_name, 'training_history.png')
+    trainer.save_history(hist_json)
+    trainer.save_plot_image(hist_png)
+    # Log artifacts/images to W&B
+    if wandb_run is not None:
+        try:
+            import wandb
+            if os.path.exists(hist_png):
+                wandb_run.log({"plots/training_history": wandb.Image(hist_png)})
+            if os.path.exists(best_model_path):
+                art = wandb.Artifact(name=f"{exp_name}_best_model", type="model")
+                art.add_file(best_model_path)
+                wandb_run.log_artifact(art)
+        except Exception as e:
+            print(f"W&B logging artifacts failed: {e}")
     evaluate_model(model, dataloaders['test'], num_class = num_classes, save_path=os.path.join(result_path, exp_name))
+    
+    # Close TensorBoard writer
+    if tb_writer is not None:
+        try:
+            # Log final metrics
+            tb_writer.add_hparams(
+                hparam_dict={
+                    'lr': args.learning_rate,
+                    'batch_size': args.batch_size,
+                    'optimizer': args.optimizer,
+                    'model': args.model_name,
+                    'dataset': args.dataset,
+                },
+                metric_dict={
+                    'best_val_acc': float(trainer.best_acc),
+                    'best_val_loss': float(trainer.best_val_loss),
+                }
+            )
+            tb_writer.close()
+            print(f"TensorBoard logs saved. View with: tensorboard --logdir={args.tensorboard_log_dir}")
+        except Exception as e:
+            print(f"TensorBoard closing failed: {e}")
+    
+    if wandb_run is not None:
+        try:
+            wandb_run.finish()
+        except Exception:
+            pass
 if __name__ == "__main__":
     args = parse_args()
     main(args)
