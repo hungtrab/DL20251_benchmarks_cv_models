@@ -137,6 +137,9 @@ class Imagenet64Dataset(Dataset):
             else:
                 raise IndexError(idx)
         
+        # ImageNet labels are typically 1-indexed (1-1000), convert to 0-indexed (0-999)
+        label = label - 1 if label > 0 else label
+        
         # Convert row to image: (12288,) -> (3, 64, 64) -> (64, 64, 3)
         img = row.reshape(3, 64, 64)
         img = np.transpose(img, (1, 2, 0))  # HWC for PIL

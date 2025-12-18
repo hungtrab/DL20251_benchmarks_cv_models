@@ -196,15 +196,15 @@ def main(args):
         elif args.dataset == 'imagenet':
             train_dir = [
                 'data/imagenet/train_data_batch_1',
-                'data/imagenet/train_data_batch_2',
-                'data/imagenet/train_data_batch_3',
-                'data/imagenet/train_data_batch_4',
-                'data/imagenet/train_data_batch_5',
-                'data/imagenet/train_data_batch_6',
-                'data/imagenet/train_data_batch_7',
-                'data/imagenet/train_data_batch_8',
-                'data/imagenet/train_data_batch_9',
-                'data/imagenet/train_data_batch_10',
+                # 'data/imagenet/train_data_batch_2',
+                # 'data/imagenet/train_data_batch_3',
+                # 'data/imagenet/train_data_batch_4',
+                # 'data/imagenet/train_data_batch_5',
+                # 'data/imagenet/train_data_batch_6',
+                # 'data/imagenet/train_data_batch_7',
+                # 'data/imagenet/train_data_batch_8',
+                # 'data/imagenet/train_data_batch_9',
+                # 'data/imagenet/train_data_batch_10',
             ]
             test_dir = [
                 'data/imagenet/val_data',

@@ -56,3 +56,4 @@ done
 
 echo "All training jobs completed!"
 
+# Train script: python train.py --config config/resnet18_adam.json --dataset imagenet --input_size 64 --batch_size 32
