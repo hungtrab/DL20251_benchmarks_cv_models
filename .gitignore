@@ -4,3 +4,5 @@ data/mit_indoor/*
 data/imagenet/*
 results/
 logs/
+scripts/__pycache__/
+scripts/checkpoints/**

@@ -6,17 +6,17 @@ models=("lenet" "alexnet" "resnet18" "resnet34" "resnet50" "vgg16" "mobilenetv3_
 
 # Loop through each model and train
 for model in "${models[@]}"; do
-    for optimizer in "adam" "sgd" "adamw"; do
+    for scheduler in "constant" "cosine"; do
         echo "=========================================="
-        echo "Training model: $model with optimizer: $optimizer"
+        echo "Training model: $model with scheduler: $scheduler"
         echo "=========================================="
-        python train.py --config config/${model}_${optimizer}.json --dataset mnist --input_size 28 --batch_size 64 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${optimizer} --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_${optimizer}_mnist
+        python train.py --config config/${model}_adamw.json --dataset mnist --input_size 28 --batch_size 64 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${scheduler} --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_${scheduler}_mnist --scheduler $scheduler
         
         # Check if training was successful
         if [ $? -eq 0 ]; then
-            echo "✓ Successfully completed training for $model with optimizer: $optimizer"
+            echo "✓ Successfully completed training for $model with scheduler: $scheduler"
         else
-            echo "✗ Training failed for $model with optimizer: $optimizer"
+            echo "✗ Training failed for $model with scheduler: $scheduler"
         fi
         echo ""
     done
