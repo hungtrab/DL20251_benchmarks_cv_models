@@ -10,3 +10,4 @@ logs/
 *.pyc
 __pycache__/
 *.pyc
+scripts/checkpoints/
