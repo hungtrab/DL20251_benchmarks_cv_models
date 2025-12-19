@@ -18,6 +18,10 @@ EPOCHS_FINETUNE=1
 DROPOUT=0.1
 SEED=42
 
+# Pretraining configuration
+AUTO_PRETRAIN=true  # Set to false to skip automatic pretraining
+PRETRAIN_MODEL="fcmae_convnextv2_base"  # Model to use for pretraining
+
 # W&B and TensorBoard flags
 WANDB_PROJECT="convnext-experiments"
 USE_WANDB="--use_wandb"
@@ -39,7 +43,7 @@ fi
 declare -a DATASETS=(
     "mnist:28"
     "fashionmnist:28"
-    "intel:150"
+    "intel:224"
     "mit:224"
     "cifar100:32"
     "caltech101:224"
@@ -82,7 +86,7 @@ for dataset_config in "${DATASETS[@]}"; do
         echo ""
         echo "[Experiment 1/$((2*${#SCHEDULERS[@]}))] No Pretrain (Train from Scratch)"
         python train.py \
-            --dataset_name "$DATASET" \
+            --dataset "$DATASET" \
             --model_name "$MODEL" \
             --optimizer "$OPTIMIZER" \
             --scheduler "$SCHEDULER" \
@@ -106,27 +110,62 @@ for dataset_config in "${DATASETS[@]}"; do
         
         # Check if self-pretrained checkpoint exists
         if [ ! -f "$SELF_CHECKPOINT" ]; then
-            echo "Self-pretrained checkpoint not found. Skipping self-pretrain experiment for $DATASET."
-            echo "To run this experiment, first pretrain the model on $DATASET and save it to $SELF_CHECKPOINT"
+            if [ "$AUTO_PRETRAIN" = true ]; then
+                echo "Self-pretrained checkpoint not found. Running pretraining on $DATASET..."
+                
+                # Run pretraining (train_dir is now optional and auto-determined)
+                echo "Starting pretraining for $DATASET (this may take a while)..."
+                python pretrain.py \
+                    --dataset "$DATASET" \
+                    --output_dir "results_pretrain" \
+                    --experiment_name "${DATASET}_${MODEL}_pretrain" \
+                    --model_name "$PRETRAIN_MODEL" \
+                    --input_size $INPUT_SIZE \
+                    --batch_size $BATCH_SIZE \
+                    --num_epochs $EPOCHS_PRETRAIN \
+                    --learning_rate 1.5e-4 \
+                    --mask_ratio 0.6 \
+                    --seed $SEED \
+                    --save_freq 10
+                
+                # Find the final checkpoint and copy it to the standard location
+                PRETRAIN_RESULT_DIR="results_pretrain/${DATASET}_${MODEL}_pretrain"
+                if [ -f "$PRETRAIN_RESULT_DIR/checkpoint_encoder_final.pth" ]; then
+                    echo "Copying pretrained checkpoint to $SELF_CHECKPOINT"
+                    cp "$PRETRAIN_RESULT_DIR/checkpoint_encoder_final.pth" "$SELF_CHECKPOINT"
+                else
+                    echo "Error: Pretraining checkpoint not found at $PRETRAIN_RESULT_DIR/checkpoint_encoder_final.pth"
+                    echo "Skipping self-pretrain experiment for $DATASET."
+                    continue
+                fi
+            else
+                echo "Self-pretrained checkpoint not found and AUTO_PRETRAIN is disabled."
+                echo "Skipping self-pretrain experiment for $DATASET."
+                echo "To enable automatic pretraining, set AUTO_PRETRAIN=true in the script."
+                continue
+            fi
         else
-            echo "Using self-pretrained checkpoint: $SELF_CHECKPOINT"
-            python train.py \
-                --dataset_name "$DATASET" \
-                --model_name "$MODEL" \
-                --optimizer "$OPTIMIZER" \
-                --scheduler "$SCHEDULER" \
-                --learning_rate $LR \
-                --batch_size $BATCH_SIZE \
-                --num_epochs $EPOCHS_FINETUNE \
-                --dropout_rate $DROPOUT \
-                --seed $SEED \
-                --input_size $INPUT_SIZE \
-                --pretrained_path "$SELF_CHECKPOINT" \
-                $USE_WANDB \
-                --wandb_project "$WANDB_PROJECT" \
-                --wandb_run_name "${DATASET}_${MODEL}_self-pretrain_${SCHEDULER}" \
-                $USE_TB
+            echo "Using existing self-pretrained checkpoint: $SELF_CHECKPOINT"
         fi
+        
+        # Run fine-tuning with self-pretrained checkpoint
+        echo "Running fine-tuning with self-pretrained checkpoint..."
+        python train.py \
+            --dataset_name "$DATASET" \
+            --model_name "$MODEL" \
+            --optimizer "$OPTIMIZER" \
+            --scheduler "$SCHEDULER" \
+            --learning_rate $LR \
+            --batch_size $BATCH_SIZE \
+            --num_epochs $EPOCHS_FINETUNE \
+            --dropout_rate $DROPOUT \
+            --seed $SEED \
+            --input_size $INPUT_SIZE \
+            --pretrained_path "$SELF_CHECKPOINT" \
+            $USE_WANDB \
+            --wandb_project "$WANDB_PROJECT" \
+            --wandb_run_name "${DATASET}_${MODEL}_self-pretrain_${SCHEDULER}" \
+            $USE_TB
         
         # Experiment 3: TIMM checkpoint pretrain + fine-tune
         echo ""
@@ -161,9 +200,16 @@ echo ""
 echo "================================================"
 echo "All ConvNeXtV2 experiments completed!"
 echo "================================================"
-echo "Total experiments run: $((${#DATASETS[@]} * ${#SCHEDULERS[@]} * 3))"
-echo "Check results in:"
+echo "Configuration:"
+echo "  - Datasets: ${#DATASETS[@]} (${DATASETS[@]})"
+echo "  - Schedulers: ${#SCHEDULERS[@]} (${SCHEDULERS[@]})"
+echo "  - Experiments per dataset: 3 (no-pretrain, self-pretrain, timm-pretrain)"
+echo "  - Total experiments: $((${#DATASETS[@]} * ${#SCHEDULERS[@]} * 3))"
+echo ""
+echo "Results locations:"
 echo "  - W&B Project: $WANDB_PROJECT"
-echo "  - TensorBoard: logs/"
-echo "  - Saved models: results/"
+echo "  - TensorBoard logs: logs/"
+echo "  - Fine-tuned models: results/"
+echo "  - Pretrained checkpoints: checkpoints/"
+echo "  - Pretraining results: results_pretrain/"
 echo "================================================"

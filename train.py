@@ -273,6 +273,8 @@ def main(args):
             # Handle different checkpoint formats
             if 'model' in checkpoint:
                 state_dict = checkpoint['model']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
             elif 'state_dict' in checkpoint:
                 state_dict = checkpoint['state_dict']
             else:
@@ -289,6 +291,8 @@ def main(args):
             # Handle different checkpoint formats
             if 'model' in checkpoint:
                 state_dict = checkpoint['model']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
             elif 'state_dict' in checkpoint:
                 state_dict = checkpoint['state_dict']
             else:

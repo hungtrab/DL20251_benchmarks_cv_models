@@ -18,12 +18,13 @@ except ImportError as e:
 def parse_pretrain_args():
     parser = argparse.ArgumentParser(description="ConvNeXt V2 FCMAE Pre-training Script")
     
-    # --- THÊM THAM SỐ DATASET ---
-    parser.add_argument('--dataset', type=str, default='intel', 
-                        help='Dataset name (must match options in data_preprocess.py)')
+    # Dataset
+    parser.add_argument('--dataset', type=str, default='intel',
+                        choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101'],
+                        help='Dataset to use for pretraining')
     
     # Data & Paths
-    parser.add_argument('--train_dir', type=str, required=True, help='Path to directory containing training images')
+    parser.add_argument('--train_dir', type=str, default=None, help='Path to directory containing training images (optional, auto-determined for built-in datasets)')
     parser.add_argument('--output_dir', type=str, default='results_pretrain', help='Directory to save checkpoints')
     parser.add_argument('--experiment_name', type=str, default=None, help='Experiment name')
     
@@ -119,20 +120,40 @@ def main(args):
 
     # 2. Data Preparation
     print("\n--> Preparing Data...")
-    try:
-        # --- SỬA ĐỔI: TRUYỀN args.dataset VÀO ĐÂY ---
-        dataloaders, dataset_sizes, class_names, num_classes = prepare_data(
-            train_dir=args.train_dir,
-            test_dir=args.train_dir, 
-            input_size=args.input_size,
-            batch_size=args.batch_size,
-            dataset=args.dataset  # Sử dụng tên dataset từ tham số dòng lệnh
-        )
-        train_loader = dataloaders['train']
-        print(f"Training samples: {dataset_sizes['train']}")
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        exit(1)
+    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
+        dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
+    elif args.dataset in ['intel', 'mit', 'imagenet']:
+        if args.dataset == 'intel':
+            train_dir = 'data/intel_image/seg_train/seg_train'
+            test_dir = 'data/intel_image/seg_test/seg_test'
+        elif args.dataset == 'mit':
+            train_dir = 'data/mit_indoor/indoorCVPR_09/Images'
+            test_dir = 'data/mit_indoor/TestImages.txt'
+        elif args.dataset == 'imagenet':
+            train_dir = [
+                'data/imagenet/train_data_batch_1',
+                # 'data/imagenet/train_data_batch_2',
+                # 'data/imagenet/train_data_batch_3',
+                # 'data/imagenet/train_data_batch_4',
+                # 'data/imagenet/train_data_batch_5',
+                # 'data/imagenet/train_data_batch_6',
+                # 'data/imagenet/train_data_batch_7',
+                # 'data/imagenet/train_data_batch_8',
+                # 'data/imagenet/train_data_batch_9',
+                # 'data/imagenet/train_data_batch_10',
+            ]
+            test_dir = [
+                'data/imagenet/val_data',
+            ]
+        dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= train_dir, test_dir= test_dir, input_size= args.input_size, batch_size= args.batch_size, dataset=args.dataset)
+    else:
+        raise ValueError(f"Dataset {args.dataset} not recognized.")
+    print(f"Dataset sizes: {dataset_sizes}")
+    print(f"Class names: {class_names}")
+    
+    train_loader = dataloaders['train']
+    print(f"Training samples: {dataset_sizes['train']}")
+    print(f"Class names: {class_names}")
 
     # 3. Model Initialization
     print(f"\n--> Initializing Model: {args.model_name}")
