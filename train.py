@@ -4,6 +4,7 @@ from evaluate import evaluate_model
 from trainer import Trainer, count_images_per_class, calculate_class_weights
 from data_preprocess import prepare_data, prepare_builtin_data
 from model import *
+from models_dense import convnextv2_tiny, convnextv2_base
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -85,9 +86,10 @@ def parse_args(input_args=None):
     parser.add_argument('--num_epochs', type=int, default=25, help='Number of epochs to train')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--model_name', type=str, default='alexnet',
-                        choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit'],
+                        choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit', 'convnextv2_t', 'convnextv2_b'],
                         help='Name of the model to use')
     parser.add_argument('--pretrained', action='store_true', help='Use pretrained model weights')
+    parser.add_argument('--pretrained_path', type=str, default=None, help='Path to pretrained checkpoint for ConvNeXtV2')
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
     parser.add_argument('--criterion', type=str, default='cross_entropy', choices=['cross_entropy', 'mse', 'hinge'], help='Loss function to use')
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'adamw', 'sgd'], help='Optimizer to use')
@@ -263,6 +265,38 @@ def main(args):
         model = EfficientNetV2(version='m', num_classes=num_classes, dropout_rate=args.dropout_rate)
     elif args.model_name == 'efficientnetv2_l':
         model = EfficientNetV2(version='l', num_classes=num_classes, dropout_rate=args.dropout_rate)
+    elif args.model_name == 'convnextv2_t':
+        model = convnextv2_tiny(num_classes=num_classes, drop_path_rate=args.dropout_rate)
+        if args.pretrained_path:
+            print(f"Loading pretrained checkpoint from {args.pretrained_path}")
+            checkpoint = torch.load(args.pretrained_path, map_location='cpu')
+            # Handle different checkpoint formats
+            if 'model' in checkpoint:
+                state_dict = checkpoint['model']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            # Remove 'head' layer from pretrained weights (will be randomly initialized)
+            state_dict = {k: v for k, v in state_dict.items() if not k.startswith('head')}
+            model.load_state_dict(state_dict, strict=False)
+            print("Pretrained weights loaded successfully (head layer excluded)")
+    elif args.model_name == 'convnextv2_b':
+        model = convnextv2_base(num_classes=num_classes, drop_path_rate=args.dropout_rate)
+        if args.pretrained_path:
+            print(f"Loading pretrained checkpoint from {args.pretrained_path}")
+            checkpoint = torch.load(args.pretrained_path, map_location='cpu')
+            # Handle different checkpoint formats
+            if 'model' in checkpoint:
+                state_dict = checkpoint['model']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            # Remove 'head' layer from pretrained weights (will be randomly initialized)
+            state_dict = {k: v for k, v in state_dict.items() if not k.startswith('head')}
+            model.load_state_dict(state_dict, strict=False)
+            print("Pretrained weights loaded successfully (head layer excluded)")
     else:
         raise ValueError(f"Model {args.model_name} not recognized.")
     # print(f"Model: {model}")
