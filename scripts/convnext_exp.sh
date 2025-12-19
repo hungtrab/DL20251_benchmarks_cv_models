@@ -41,8 +41,6 @@ fi
 
 # Dataset configurations: name, input_size
 declare -a DATASETS=(
-    "mnist:28"
-    "fashionmnist:28"
     "intel:224"
     "mit:224"
     "cifar100:32"
@@ -151,7 +149,7 @@ for dataset_config in "${DATASETS[@]}"; do
         # Run fine-tuning with self-pretrained checkpoint
         echo "Running fine-tuning with self-pretrained checkpoint..."
         python train.py \
-            --dataset_name "$DATASET" \
+            --dataset "$DATASET" \
             --model_name "$MODEL" \
             --optimizer "$OPTIMIZER" \
             --scheduler "$SCHEDULER" \
