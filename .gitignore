@@ -1,6 +1,12 @@
-dataset_playground/
+*.pth
+*.npz
+*.png
+scripts/results/
 __pycache__/
 data/mit_indoor/*
 data/imagenet/*
 results/
 logs/
+*.pyc
+__pycache__/
+*.pyc
