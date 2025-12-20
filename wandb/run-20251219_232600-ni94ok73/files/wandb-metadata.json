@@ -1,0 +1,17 @@
+{
+  "os":  "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+  "python":  "CPython 3.10.12",
+  "startedAt":  "2025-12-19T16:26:00.628564Z",
+  "program":  "/mnt/disk3/tinvt/DL20251_benchmarks_cv_models/checkwd.py",
+  "codePath":  "checkwd.py",
+  "codePathLocal":  "checkwd.py",
+  "git":  {
+    "remote":  "https://github.com/hungtrab/DL20251_benchmarks_cv_models",
+    "commit":  "936e38ff19269115cc19466808092c147fc9b3e6"
+  },
+  "email":  "tinbgbg05@gmail.com",
+  "root":  "/mnt/disk3/tinvt/DL20251_benchmarks_cv_models",
+  "host":  "vaipe-Z790-UD-AX",
+  "executable":  "/mnt/disk1/miniconda3/envs/tindl/bin/python",
+  "writerId":  "nukcclzwf6uebco725350qz0t3hghlia"
+}
