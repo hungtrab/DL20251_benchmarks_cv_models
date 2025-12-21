@@ -28,7 +28,7 @@ else
 fi
 
 # List of models to train
-models=("alexnet" "resnet18" "resnet34" "resnet50" "vgg16" "mobilenetv3_l" "mobilenetv3_s" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "resnet101" "inceptionv3" "vgg16_bn")
+models=("alexnet" "resnet18" "resnet34" "resnet50" "vgg16" "mobilenetv3_l" "mobilenetv3_s" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "vgg16_bn")
 
 # Loop through each model and train
 for model in "${models[@]}"; do
@@ -36,7 +36,7 @@ for model in "${models[@]}"; do
         echo "=========================================="
         echo "Training model: $model with scheduler: $scheduler"
         echo "=========================================="
-        python train.py --config config/${model}_adamw.json --dataset mit --input_size 224 --batch_size 32 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${scheduler}_mit --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_${scheduler}_mit --scheduler $scheduler --num_epochs 30
+        python train.py --config config/${model}_adamw.json --dataset mit --input_size 224 --batch_size 32 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${scheduler}_mit --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_${scheduler}_mit --scheduler $scheduler --num_epochs 50
         
         # Check if training was successful
         if [ $? -eq 0 ]; then
