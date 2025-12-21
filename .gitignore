@@ -6,3 +6,5 @@ results/
 logs/
 scripts/__pycache__/
 scripts/checkpoints/**
+checkpoints/**
+data/cifar100/*

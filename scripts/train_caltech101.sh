@@ -2,7 +2,7 @@
 cd ..
 
 # List of models to train
-models=("lenet" "resnet18" "resnet34" "resnet50" "vgg16" "alexnet" "mobilenetv3_s" "mobilenetv3_l" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "resnet101" "inceptionv3" "vgg16_bn")
+models=("resnet18" "resnet34" "resnet50" "vgg16" "alexnet" "mobilenetv3_s" "mobilenetv3_l" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "resnet101" "inceptionv3" "vgg16_bn")
 
 # Loop through each model and train
 for model in "${models[@]}"; do
@@ -10,7 +10,7 @@ for model in "${models[@]}"; do
         echo "=========================================="
         echo "Training model: $model with scheduler: $scheduler"
         echo "=========================================="
-        python train.py --config config/${model}_adamw.json --dataset caltech101 --input_size 224 --batch_size 32 --scheduler $scheduler --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_adamw_${scheduler}_caltech101 --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_adamw_${scheduler}_caltech101 --num_epochs 30
+        python train.py --config config/${model}_adamw.json --dataset caltech101 --input_size 224 --batch_size 32 --scheduler $scheduler --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_adamw_${scheduler}_caltech101 --use_wandb --wandb_project dl20251-cv --wandb_run_name ${model}_adamw_${scheduler}_caltech101 --num_epochs 35
 
         # Check if training was successful
         if [ $? -eq 0 ]; then
