@@ -8,3 +8,4 @@ scripts/__pycache__/
 scripts/checkpoints/**
 checkpoints/**
 data/cifar100/*
+wandb/

@@ -28,7 +28,9 @@ else
 fi
 
 # List of models to train
-models=("mobilenetv3_l" "resnet18" "resnet34" "efficientnetv2_s" "efficientnetv2_m" "mobilenetv3_s")
+# models=("mobilenetv3_l" "resnet18" "resnet34" "efficientnetv2_s" "efficientnetv2_m" "mobilenetv3_s")
+models=("alexnet" "resnet18" "resnet34" "resnet50" "vgg16" "mobilenetv3_l" "mobilenetv3_s" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "vgg16_bn")
+
 
 # Loop through each model and train
 for model in "${models[@]}"; do
