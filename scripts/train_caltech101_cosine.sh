@@ -2,13 +2,13 @@
 cd ..
 
 # List of models to train
-# models=("resnet18" "resnet34" "resnet50" "vgg16" "alexnet" "mobilenetv3_s" "mobilenetv3_l" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "vgg16_bn")
-models=("efficientnetv2_s" "mobilenetv3_s" "mobilenetv3_l")
+models=("resnet18" "resnet34" "resnet50" "vgg16" "alexnet" "mobilenetv3_s" "mobilenetv3_l" "vit" "efficientnetv2_s" "efficientnetv2_m" "efficientnetv2_l" "vgg16_bn")
+# models=("efficientnetv2_s" "mobilenetv3_s" "mobilenetv3_l")
 
 
 # Loop through each model and train
 for model in "${models[@]}"; do
-    for scheduler in "constant" "cosine"; do
+    for scheduler in "cosine"; do
         echo "=========================================="
         echo "Training model: $model with scheduler: $scheduler"
         echo "=========================================="
