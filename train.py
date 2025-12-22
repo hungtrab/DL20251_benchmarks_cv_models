@@ -330,39 +330,48 @@ def main(args):
     if args.scheduler == 'constant':
         scheduler = None
     else:
+        # Tính toán steps
         warmup_steps = args.num_warmup_steps
         total_steps = args.num_epochs * len(dataloaders['train'])
-        decay_steps = int(0.05 * total_steps) 
-        steady_steps = total_steps - warmup_steps - decay_steps
 
+        # Decay steps chiếm TOÀN BỘ phần còn lại sau warmup
+        decay_steps = total_steps - warmup_steps 
+
+        # 1. Warmup: Tăng từ rất nhỏ lên base_lr
         warmup_scheduler = LinearLR(
-            optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_steps
-        )
-        steady_scheduler = ConstantLR(
-            optimizer, factor=1.0, total_iters=steady_steps
+            optimizer, 
+            start_factor=0.01, # Bắt đầu từ 1% LR
+            end_factor=1.0,    # Lên 100% LR
+            total_iters=warmup_steps
         )
 
-        if args.scheduler == 'linear':
+        # 2. Decay: Giảm từ base_lr xuống min_lr
+        if args.scheduler == 'cosine':
+            # Eta_min thường để khá nhỏ, ví dụ 1e-6 hoặc 1% base_lr
+            eta_min = args.learning_rate * 0.01 
+            decay_scheduler = CosineAnnealingLR(
+                optimizer,
+                T_max=decay_steps, # Decay từ từ trong suốt quãng đường còn lại
+                eta_min=eta_min
+            )
+        elif args.scheduler == 'linear':
             decay_scheduler = LinearLR(
                 optimizer,
                 start_factor=1.0,
-                end_factor=0.05,
+                end_factor=0.01,
                 total_iters=decay_steps
             )
-        elif args.scheduler == 'cosine':
-            eta_min = 0.1 * args.learning_rate
-            decay_scheduler = CosineAnnealingLR(
-                optimizer,
-                T_max=decay_steps,
-                eta_min=eta_min
-            )
+            # ... (các loại khác)
+
+            
         else:
             raise ValueError(f"Unknown scheduler type: {args.scheduler}")
 
+        # Nối lại: Hết warmup là sang decay luôn, không có chuyện "nghỉ giải lao" (steady)
         scheduler = SequentialLR(
             optimizer,
-            schedulers=[warmup_scheduler, steady_scheduler, decay_scheduler],
-            milestones=[warmup_steps, warmup_steps + steady_steps]
+            schedulers=[warmup_scheduler, decay_scheduler],
+            milestones=[warmup_steps]
         )
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
     trainer = Trainer(
