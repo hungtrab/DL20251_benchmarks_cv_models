@@ -10,11 +10,11 @@
   },
   "train_info": {
     "num_epochs": 25,
-    "learning_rate": 0.001,
+    "learning_rate": 0.0001,
     "optimizer": "adamw",
     "criterion": "cross_entropy",
     "scheduler": "cosine",
-    "num_warmup_steps": 0,
+    "num_warmup_steps": 250,
     "use_class_weights": false,
     "weight_type": "inverse",
     "seed": 42

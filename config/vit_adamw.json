@@ -14,7 +14,7 @@
     "optimizer": "adamw",
     "criterion": "cross_entropy",
     "scheduler": "cosine",
-    "num_warmup_steps": 500,
+    "num_warmup_steps": 250,
     "use_class_weights": false,
     "weight_type": "inverse",
     "seed": 42

@@ -41,8 +41,8 @@ def calculate_class_weights(class_counts, weight_type = 'inverse'):
     
 
 class Trainer:
-    def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, scheduler = None, 
-                 device = None, num_epochs = 25, save_path = None, wandb_run = None, tb_writer = None):
+    def __init__(self, model, dataloaders, dataset_sizes, criterion, optimizer, scheduler=None, 
+                 device=None, num_epochs=25, save_path=None, wandb_run=None, tb_writer=None):
         super().__init__()
         self.dataloaders = dataloaders
         self.dataset_sizes = dataset_sizes
@@ -54,9 +54,12 @@ class Trainer:
         self.save_path = save_path
         self.wandb_run = wandb_run
         self.tb_writer = tb_writer
+        
+        # Lưu trạng thái tốt nhất
         self.best_model = copy.deepcopy(model.state_dict())
         self.best_acc = 0.0
         self.best_val_loss = float('inf')
+        
         self.history = {
             'train_loss': [],
             'val_loss': [],
@@ -67,16 +70,19 @@ class Trainer:
     
     def train(self):
         since = time.time()
+        
         # Watch model gradients/parameters if using W&B
         if self.wandb_run is not None:
             try:
                 self.wandb_run.watch(self.model, log="gradients", log_freq=100)
             except Exception:
                 pass
+                
         for epoch in range(self.num_epochs):
             print(f'Epoch {epoch+1}/{self.num_epochs}')
             print('-' * 10)
             epoch_start = time.time()
+            
             for phase in ['train', 'test']:
                 if phase == 'train':
                     self.model.train()
@@ -85,43 +91,63 @@ class Trainer:
                     
                 running_loss = 0.0
                 running_corrects = 0
+                
                 dataloader = self.dataloaders[phase]
+                # Tqdm bar setup
                 progress_bar = tqdm(dataloader, desc=f"{phase} epoch {epoch+1}/{self.num_epochs}", unit="batch")
+                
                 seen_samples = 0
+                
+                # --- BẮT ĐẦU VÒNG LẶP BATCH ---
                 for inputs, labels in progress_bar:
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
                     
                     self.optimizer.zero_grad()
                     
+                    # Forward
                     with torch.set_grad_enabled(phase == 'train'):
+                        # [FIX 1] Bỏ đoạn check tuple Inception, viết gọn lại
                         outputs = self.model(inputs)
-                        if isinstance(outputs, tuple) and len(outputs) == 2:
-                            main_output, aux_output = outputs
-                            main_loss = self.criterion(main_output, labels)
-                            aux_loss = self.criterion(aux_output, labels)
-                            loss = main_loss + 0.4 * aux_loss
-                            _, preds = torch.max(main_output, 1)
-                        else:
-                            loss = self.criterion(outputs, labels)
-                            _, preds = torch.max(outputs, 1)
+                        loss = self.criterion(outputs, labels)
+                        _, preds = torch.max(outputs, 1)
                         
+                        # Backward + Optimize
                         if phase == 'train':
                             loss.backward()
                             self.optimizer.step()
+                            
+                            # [FIX 2] STEP SCHEDULER THEO BATCH (QUAN TRỌNG NHẤT)
+                            # Dành cho Cosine, Linear Warmup, StepLR...
+                            if self.scheduler is not None:
+                                # Trừ trường hợp dùng ReduceLROnPlateau (loại này step theo epoch)
+                                if not isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                                    self.scheduler.step()
+                            
+                            # Log batch metric cho W&B để vẽ chart mượt
+                            if self.wandb_run is not None and seen_samples % (10 * inputs.size(0)) == 0:
+                                try:
+                                    self.wandb_run.log({
+                                        "train/batch_loss": loss.item(),
+                                        "lr": self.optimizer.param_groups[0]['lr']
+                                    })
+                                except Exception:
+                                    pass
                         
+                        # Stats accumulation
                         running_loss += loss.item() * inputs.size(0)
                         running_corrects += torch.sum(preds == labels.data)
+                        
                         seen_samples += inputs.size(0)
                         current_loss = running_loss / seen_samples
-                        progress_bar.set_postfix(loss = f"{current_loss:.4f}")
-                    
-                if phase == 'train' and self.scheduler is not None:
-                    self.scheduler.step()
-                    
+                        progress_bar.set_postfix(loss=f"{current_loss:.4f}")
+                
+                # --- KẾT THÚC VÒNG LẶP BATCH ---
+                
                 epoch_loss = running_loss / self.dataset_sizes[phase]
                 epoch_acc = running_corrects.double() / self.dataset_sizes[phase]
                 
+                # Update history
                 if phase == 'train':
                     self.history['train_loss'].append(epoch_loss)
                     self.history['train_acc'].append(epoch_acc.item())
@@ -131,15 +157,16 @@ class Trainer:
                 
                 # Log epoch metrics to W&B
                 if self.wandb_run is not None:
-                    log_payload = {
-                        f'{phase}/loss': float(epoch_loss),
-                        f'{phase}/acc': float(epoch_acc),
-                        'epoch': epoch + 1,
-                    }
-                    # Log learning rate for train phase
-                    if phase == 'train' and len(self.optimizer.param_groups) > 0:
-                        log_payload['lr'] = float(self.optimizer.param_groups[0].get('lr', 0.0))
                     try:
+                        log_payload = {
+                            f'{phase}/loss': float(epoch_loss),
+                            f'{phase}/acc': float(epoch_acc),
+                            'epoch': epoch + 1,
+                        }
+                        # Log LR cuối epoch để tham khảo thêm
+                        if phase == 'train' and len(self.optimizer.param_groups) > 0:
+                            log_payload['lr_epoch_end'] = float(self.optimizer.param_groups[0].get('lr', 0.0))
+                        
                         self.wandb_run.log(log_payload)
                     except Exception:
                         pass
@@ -149,33 +176,40 @@ class Trainer:
                     try:
                         self.tb_writer.add_scalar(f'{phase}/loss', float(epoch_loss), epoch + 1)
                         self.tb_writer.add_scalar(f'{phase}/acc', float(epoch_acc), epoch + 1)
-                        # Log learning rate for train phase
                         if phase == 'train' and len(self.optimizer.param_groups) > 0:
                             self.tb_writer.add_scalar('lr', float(self.optimizer.param_groups[0].get('lr', 0.0)), epoch + 1)
                     except Exception:
                         pass
                     
+                # [FIX 3] LOGIC SAVE MODEL CHUẨN
                 if phase == 'test':
+                    print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+                    
+                    # Ưu tiên lưu theo Accuracy (Quan trọng nhất với bài toán phân loại)
                     if epoch_acc > self.best_acc:
                         self.best_acc = epoch_acc
                         self.best_model = copy.deepcopy(self.model.state_dict())
                         
-                    if epoch_loss < self.best_val_loss:
-                        self.best_val_loss = epoch_loss
+                        # Lưu file ngay lập tức khi có Acc kỷ lục mới
                         if self.save_path:
                             torch.save(self.model.state_dict(), self.save_path)
-                            print(f"Model saved to {self.save_path}")
-                            # Log best model checkpoint path
+                            print(f"--> Model saved to {self.save_path} (New Best Acc: {self.best_acc:.4f})")
+                            
+                            # Log best checkpoint to wandb
                             if self.wandb_run is not None:
                                 try:
-                                    self.wandb_run.log({
-                                        'best/val_loss': float(self.best_val_loss),
-                                        'best/val_acc': float(self.best_acc)
-                                    })
+                                    self.wandb_run.log({'best/val_acc': float(self.best_acc)})
                                 except Exception:
                                     pass
-                print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
-                
+
+                    # Theo dõi thêm Loss, nhưng không save đè lên file Acc
+                    if epoch_loss < self.best_val_loss:
+                        self.best_val_loss = epoch_loss
+
+            # [FIX 4] STEP SCHEDULER THEO EPOCH (Chỉ dành cho ReduceLROnPlateau)
+            if self.scheduler is not None and isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                # Plateau cần metric val_loss để quyết định giảm LR
+                self.scheduler.step(self.history['val_loss'][-1])
                         
             epoch_end = time.time()
             print(f'Epoch {epoch+1} completed in {epoch_end - epoch_start:.0f} seconds')
@@ -184,6 +218,8 @@ class Trainer:
         print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
         print(f'Best test Acc: {self.best_acc:.4f}')
         print(f'Best test Loss: {self.best_val_loss:.4f}')
+        
+        # Final summary log
         if self.wandb_run is not None:
             try:
                 self.wandb_run.summary['best_val_acc'] = float(self.best_acc)
@@ -191,6 +227,7 @@ class Trainer:
             except Exception:
                 pass
         
+        # Load best model weights before returning
         self.model.load_state_dict(self.best_model)
         return self.model, self.history
     def plot_history(self):
