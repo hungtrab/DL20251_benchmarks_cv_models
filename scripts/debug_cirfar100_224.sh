@@ -10,7 +10,7 @@ for model in "${models[@]}"; do
         echo "=========================================="
         echo "Training model: $model with scheduler: $scheduler"
         echo "=========================================="
-        python train.py --config config/${model}_adamw.json --dataset cifar100 --input_size 32 --batch_size 128 --num_warmup_steps 500 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${scheduler}_cifar100 --use_wandb --wandb_project dl20251-cv-test --wandb_run_name ${model}_${scheduler}_cifar100 --scheduler $scheduler --num_epochs 3
+        python train.py --config config/${model}_adamw.json --dataset cifar100_224 --input_size 224 --batch_size 128 --num_warmup_steps 500 --use_tensorboard --tensorboard_log_dir results/tensorboard/${model}_${scheduler}_cifar100_224 --use_wandb --wandb_project dl20251-cv-test --wandb_run_name ${model}_${scheduler}_cifar100_224 --scheduler $scheduler --num_epochs 3
         
         # Check if training was successful
         if [ $? -eq 0 ]; then

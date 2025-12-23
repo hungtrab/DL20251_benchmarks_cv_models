@@ -396,7 +396,25 @@ def prepare_builtin_data(data_dir, batch_size, dataset='mnist'):
         # CIFAR-100 has 100 fine-grained classes
         class_names = train_dataset.classes
         num_classes = 100
-        
+    elif dataset == 'cifar100_224':
+        train_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.RandomCrop(224, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        test_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        train_dataset = datasets.CIFAR100(root=data_dir, train=True, download=True, transform=train_transform)
+        test_dataset = datasets.CIFAR100(root=data_dir, train=False, download=True, transform=test_transform)
+        # CIFAR-100 has 100 fine-grained classes
+        class_names = train_dataset.classes
+        num_classes = 100
+
     elif dataset == 'caltech101':
         transform = transforms.Compose([
             transforms.Lambda(lambda x: x.convert("RGB")),

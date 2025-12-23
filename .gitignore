@@ -9,3 +9,5 @@ scripts/checkpoints/**
 checkpoints/**
 data/cifar100/*
 wandb/
+.vscode/
+data/cifar100_224/*

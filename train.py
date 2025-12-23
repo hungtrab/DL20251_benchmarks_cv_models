@@ -78,7 +78,7 @@ def parse_args(input_args=None):
     # parser.add_argument('--train_dir', type=str, help='Path to the training data directory')
     # parser.add_argument('--test_dir', type=str, help='Path to the testing data directory')
     # parser.add_argument('--mnist_data_dir', type=str, default=None, help='Directory to store MNIST data')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101', 'cifar100_224'],
                         help='Dataset to use for training and evaluation')
     parser.add_argument('--input_size', type=int, default=224, help='Input size for the model')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training and validation')
@@ -87,6 +87,7 @@ def parse_args(input_args=None):
     parser.add_argument('--model_name', type=str, default='alexnet',
                         choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit'],
                         help='Name of the model to use')
+    parser.add_argument('--fasttrain', action='store_true', help='Use mixed precision training for faster training')
     parser.add_argument('--pretrained', action='store_true', help='Use pretrained model weights')
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
     parser.add_argument('--criterion', type=str, default='cross_entropy', choices=['cross_entropy', 'mse', 'hinge'], help='Loss function to use')
@@ -202,7 +203,7 @@ def main(args):
         except Exception as e:
             print(f"W&B init failed: {e}. Continuing without W&B.")
             wandb_run = None
-    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
+    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101', 'cifar100_224']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
     elif args.dataset in ['intel', 'mit', 'imagenet']:
         if args.dataset == 'intel':
@@ -350,7 +351,11 @@ def main(args):
         wandb_run=wandb_run,
         tb_writer=tb_writer,
     )
-    model, history = trainer.train()
+    if args.fasttrain:
+        print("Using fasttrain with mixed precision.")
+        model, history = trainer.fasttrain()
+    else:
+        model, history = trainer.train()
     # trainer.plot_history()
     hist_json = os.path.join(result_path, exp_name, 'training_history.json')
     hist_png = os.path.join(result_path, exp_name, 'training_history.png')
