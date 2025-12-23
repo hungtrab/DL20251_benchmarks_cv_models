@@ -4,6 +4,7 @@ from evaluate import evaluate_model
 from trainer import Trainer, count_images_per_class, calculate_class_weights
 from data_preprocess import prepare_data, prepare_builtin_data
 from model import *
+from models_dense import convnextv2_tiny, convnextv2_base
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -78,17 +79,17 @@ def parse_args(input_args=None):
     # parser.add_argument('--train_dir', type=str, help='Path to the training data directory')
     # parser.add_argument('--test_dir', type=str, help='Path to the testing data directory')
     # parser.add_argument('--mnist_data_dir', type=str, default=None, help='Directory to store MNIST data')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101', 'cifar100_224'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101'],
                         help='Dataset to use for training and evaluation')
     parser.add_argument('--input_size', type=int, default=224, help='Input size for the model')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training and validation')
     parser.add_argument('--num_epochs', type=int, default=25, help='Number of epochs to train')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate for the optimizer')
     parser.add_argument('--model_name', type=str, default='alexnet',
-                        choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit'],
+                        choices=['efficientnetv2_s','efficientnetv2_m', 'efficientnetv2_l', 'alexnet', 'vgg16', 'lenet', 'vgg16_bn', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'inceptionv3', 'mobilenetv3_s', 'mobilenetv3_l', 'vit', 'convnextv2_t', 'convnextv2_b'],
                         help='Name of the model to use')
-    parser.add_argument('--fasttrain', action='store_true', help='Use mixed precision training for faster training')
     parser.add_argument('--pretrained', action='store_true', help='Use pretrained model weights')
+    parser.add_argument('--pretrained_path', type=str, default=None, help='Path to pretrained checkpoint for ConvNeXtV2')
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
     parser.add_argument('--criterion', type=str, default='cross_entropy', choices=['cross_entropy', 'mse', 'hinge'], help='Loss function to use')
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'adamw', 'sgd'], help='Optimizer to use')
@@ -98,6 +99,7 @@ def parse_args(input_args=None):
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--fasttrain', action='store_true', help='Enable fast training with mixed precision (torch.cuda.amp)')
     # W&B logging options
     parser.add_argument('--use_wandb', action='store_true', help='Enable Weights & Biases logging')
     parser.add_argument('--wandb_project', type=str, default='dl20251-cv', help='W&B project name')
@@ -171,7 +173,7 @@ def main(args):
     #     dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= args.train_dir, test_dir= args.test_dir, input_size= args.input_size, batch_size= args.batch_size)
     result_path = os.path.abspath('results')
     os.makedirs(result_path, exist_ok=True)
-    exp_name = f"{args.dataset}_{args.model_name}_{args.optimizer}_{time.strftime('%Y%m%d_%H%M%S')}"
+    exp_name = f"demo_{args.dataset}_{args.model_name}_{args.optimizer}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
     
     # Initialize TensorBoard if requested
@@ -203,7 +205,7 @@ def main(args):
         except Exception as e:
             print(f"W&B init failed: {e}. Continuing without W&B.")
             wandb_run = None
-    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101', 'cifar100_224']:
+    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
     elif args.dataset in ['intel', 'mit', 'imagenet']:
         if args.dataset == 'intel':
@@ -264,6 +266,42 @@ def main(args):
         model = EfficientNetV2(version='m', num_classes=num_classes, dropout_rate=args.dropout_rate)
     elif args.model_name == 'efficientnetv2_l':
         model = EfficientNetV2(version='l', num_classes=num_classes, dropout_rate=args.dropout_rate)
+    elif args.model_name == 'convnextv2_t':
+        model = convnextv2_tiny(num_classes=num_classes, drop_path_rate=args.dropout_rate)
+        if args.pretrained_path:
+            print(f"Loading pretrained checkpoint from {args.pretrained_path}")
+            checkpoint = torch.load(args.pretrained_path, map_location='cpu')
+            # Handle different checkpoint formats
+            if 'model' in checkpoint:
+                state_dict = checkpoint['model']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            # Remove 'head' layer from pretrained weights (will be randomly initialized)
+            state_dict = {k: v for k, v in state_dict.items() if not k.startswith('head')}
+            model.load_state_dict(state_dict, strict=False)
+            print("Pretrained weights loaded successfully (head layer excluded)")
+    elif args.model_name == 'convnextv2_b':
+        model = convnextv2_base(num_classes=num_classes, drop_path_rate=args.dropout_rate)
+        if args.pretrained_path:
+            print(f"Loading pretrained checkpoint from {args.pretrained_path}")
+            checkpoint = torch.load(args.pretrained_path, map_location='cpu')
+            # Handle different checkpoint formats
+            if 'model' in checkpoint:
+                state_dict = checkpoint['model']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            # Remove 'head' layer from pretrained weights (will be randomly initialized)
+            state_dict = {k: v for k, v in state_dict.items() if not k.startswith('head')}
+            model.load_state_dict(state_dict, strict=False)
+            print("Pretrained weights loaded successfully (head layer excluded)")
     else:
         raise ValueError(f"Model {args.model_name} not recognized.")
     # print(f"Model: {model}")
@@ -336,7 +374,6 @@ def main(args):
             schedulers=[warmup_scheduler, decay_scheduler],
             milestones=[warmup_steps]
         )
-
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
     trainer = Trainer(
         model,
@@ -352,7 +389,6 @@ def main(args):
         tb_writer=tb_writer,
     )
     if args.fasttrain:
-        print("Using fasttrain with mixed precision.")
         model, history = trainer.fasttrain()
     else:
         model, history = trainer.train()
