@@ -218,7 +218,7 @@ def evaluate_run(run_path, run_name, device='cuda'):
         )
         
         # Save results to text file
-        txt_path = os.path.join(run_path, 'evaluation_results.txt')
+        txt_path = os.path.join(run_path, str(run_path.name),'evaluation_results.txt')
         with open(txt_path, 'w') as f:
             f.write(f"Evaluation Results for {run_name}\n")
             f.write(f"{'='*80}\n\n")
@@ -318,7 +318,7 @@ def main():
     print(f"{'='*80}\n")
     
     # Create summary file
-    summary_path = results_dir / f'evaluation_summary_{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
+    summary_path = results_dir / f'evaluation_summary_' /  f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.txt'
     with open(summary_path, 'w') as f:
         f.write(f"Evaluation Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"{'='*80}\n\n")
