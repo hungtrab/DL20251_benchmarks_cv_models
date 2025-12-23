@@ -11,3 +11,5 @@ logs/
 __pycache__/
 *.pyc
 scripts/checkpoints/
+dataset_playground/
+data/cifar100/
