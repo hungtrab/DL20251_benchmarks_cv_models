@@ -11,7 +11,7 @@ data/cifar100/*
 wandb/
 .vscode/
 data/cifar100_224/*
-results_pretrain/*
-weights/*
-results_finetune/*
+results_pretrain/**
+weights/**
+results_finetune/**
 .gradio/
