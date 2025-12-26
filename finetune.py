@@ -317,7 +317,7 @@ def parse_finetune_args(input_args=None):
     
     # Dataset & Data
     parser.add_argument('--dataset', type=str, default='mit', 
-                        choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101'],
+                        choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'cifar100_224', 'mit', 'imagenet', 'caltech101'],
                         help='Dataset to use for fine-tuning')
     parser.add_argument('--input_size', type=int, default=224, help='Input size for the model')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training and validation')
@@ -427,7 +427,7 @@ def main(args):
     print(f"Loading {args.dataset} dataset...")
     print(f"{'='*60}\n")
     
-    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
+    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101', 'cifar100_224']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(
             data_dir=f"data/{args.dataset}", 
             batch_size=args.batch_size, 

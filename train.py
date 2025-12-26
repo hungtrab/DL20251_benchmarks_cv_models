@@ -100,6 +100,7 @@ def parse_args(input_args=None):
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--fasttrain', action='store_true', help='Enable fast training with mixed precision (torch.cuda.amp)')
+    parser.add_argument('--resume', type=str, default=None, help='Path to checkpoint to resume training from')
     # W&B logging options
     parser.add_argument('--use_wandb', action='store_true', help='Enable Weights & Biases logging')
     parser.add_argument('--wandb_project', type=str, default='dl20251-cv', help='W&B project name')
@@ -304,6 +305,59 @@ def main(args):
             print("Pretrained weights loaded successfully (head layer excluded)")
     else:
         raise ValueError(f"Model {args.model_name} not recognized.")
+    
+    # ==========================================
+    # RESUME FROM CHECKPOINT (if provided)
+    # ==========================================
+    start_epoch = 0
+    loaded_history = None
+    loaded_optimizer_state = None
+    loaded_scheduler_state = None
+    
+    if args.resume is not None:
+        if os.path.exists(args.resume):
+            print(f"\n{'='*60}")
+            print(f"Resuming from checkpoint: {args.resume}")
+            print(f"{'='*60}\n")
+            
+            checkpoint = torch.load(args.resume, map_location='cpu')
+            
+            # Load model state
+            if 'model_state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['model_state_dict'])
+                print("✓ Model state loaded")
+            elif 'state_dict' in checkpoint:
+                model.load_state_dict(checkpoint['state_dict'])
+                print("✓ Model state loaded")
+            else:
+                # Assume the checkpoint is just the state dict
+                model.load_state_dict(checkpoint)
+                print("✓ Model state loaded")
+            
+            # Load optimizer state if available
+            if 'optimizer_state_dict' in checkpoint:
+                loaded_optimizer_state = checkpoint['optimizer_state_dict']
+                print("✓ Optimizer state will be loaded")
+            
+            # Load scheduler state if available
+            if 'scheduler_state_dict' in checkpoint and checkpoint['scheduler_state_dict'] is not None:
+                loaded_scheduler_state = checkpoint['scheduler_state_dict']
+                print("✓ Scheduler state will be loaded")
+            
+            # Load training metadata if available
+            if 'epoch' in checkpoint:
+                start_epoch = checkpoint['epoch']
+                print(f"✓ Resuming from epoch {start_epoch}")
+            
+            if 'history' in checkpoint:
+                loaded_history = checkpoint['history']
+                print("✓ Training history loaded")
+            
+            print(f"\n{'='*60}\n")
+        else:
+            print(f"Warning: Checkpoint file not found: {args.resume}")
+            print("Starting training from scratch...\n")
+    
     # print(f"Model: {model}")
     if args.optimizer == 'adamw':
         optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate)
@@ -313,6 +367,11 @@ def main(args):
         optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
     else:
         raise ValueError(f"Optimizer {args.optimizer} not recognized.")
+    
+    # Load optimizer state if resuming
+    if loaded_optimizer_state is not None:
+        optimizer.load_state_dict(loaded_optimizer_state)
+        print("✓ Optimizer state loaded")
     
     if args.criterion == 'cross_entropy':
         if args.use_class_weights:
@@ -374,6 +433,12 @@ def main(args):
             schedulers=[warmup_scheduler, decay_scheduler],
             milestones=[warmup_steps]
         )
+    
+    # Load scheduler state if resuming
+    if loaded_scheduler_state is not None and scheduler is not None:
+        scheduler.load_state_dict(loaded_scheduler_state)
+        print("✓ Scheduler state loaded")
+    
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
     trainer = Trainer(
         model,
@@ -388,10 +453,35 @@ def main(args):
         wandb_run=wandb_run,
         tb_writer=tb_writer,
     )
+    
+    # Restore history and best metrics if resuming
+    if loaded_history is not None:
+        trainer.history = loaded_history
+        if 'best_acc' in checkpoint:
+            trainer.best_acc = checkpoint['best_acc']
+        if 'best_val_loss' in checkpoint:
+            trainer.best_val_loss = checkpoint['best_val_loss']
+        print("✓ Training history and best metrics restored")
+    
     if args.fasttrain:
         model, history = trainer.fasttrain()
     else:
         model, history = trainer.train()
+    
+    # Save final checkpoint with full state
+    checkpoint_path = os.path.join(result_path, exp_name, 'checkpoint_final.pth')
+    torch.save({
+        'epoch': args.num_epochs,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+        'best_acc': trainer.best_acc,
+        'best_val_loss': trainer.best_val_loss,
+        'history': history,
+        'config': vars(args),
+    }, checkpoint_path)
+    print(f"✓ Final checkpoint saved to {checkpoint_path}")
+    
     # trainer.plot_history()
     hist_json = os.path.join(result_path, exp_name, 'training_history.json')
     hist_png = os.path.join(result_path, exp_name, 'training_history.png')
