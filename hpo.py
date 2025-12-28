@@ -374,8 +374,21 @@ class HPORunner:
         # Create output directory
         os.makedirs(config.output_dir, exist_ok=True)
         
-        # Setup storage
-        self.storage_url = f"sqlite:///{config.storage_path}"
+        # Setup storage - handle both plain paths and sqlite:// URLs
+        if config.storage_path.startswith('sqlite:///'):
+            # Already has sqlite:// prefix
+            self.storage_url = config.storage_path
+            # Extract actual file path (remove sqlite:///)
+            db_path = config.storage_path.replace('sqlite:///', '')
+        else:
+            # Plain path - add prefix
+            db_path = config.storage_path
+            self.storage_url = f"sqlite:///{db_path}"
+        
+        # Ensure parent directory of database exists
+        db_dir = os.path.dirname(db_path)
+        if db_dir:  # Only create if not current directory
+            os.makedirs(db_dir, exist_ok=True)
     
     def load_data(self) -> Tuple[Dict, Dict, List[str], int]:
         """Load the dataset."""
@@ -770,7 +783,7 @@ def parse_args():
     parser.add_argument('--study_name', type=str, default='hpo_study',
                         help='Base name for Optuna studies')
     parser.add_argument('--storage', type=str, default='hpo_results.db',
-                        help='SQLite database path for Optuna storage')
+                        help='SQLite database path (e.g., "hpo.db" or "sqlite:///path/to/hpo.db")')
     parser.add_argument('--n_jobs', type=int, default=1,
                         help='Number of parallel trials (1 for sequential, -1 for auto)')
     
