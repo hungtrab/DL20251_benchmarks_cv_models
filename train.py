@@ -109,6 +109,14 @@ def parse_args(input_args=None):
     # TensorBoard logging options
     parser.add_argument('--use_tensorboard', action='store_true', help='Enable TensorBoard logging')
     parser.add_argument('--tensorboard_log_dir', type=str, default='logs', help='TensorBoard log directory')
+    
+    # Evaluation options (Section 6 - Comprehensive Evaluation)
+    parser.add_argument('--eval_robustness', action='store_true', help='Evaluate robustness with noise injection (Section 6.1)')
+    parser.add_argument('--eval_calibration', action='store_true', help='Evaluate calibration with ECE (Section 6.2)')
+    parser.add_argument('--eval_bootstrap', action='store_true', help='Compute bootstrap confidence interval (Section 6.3)')
+    parser.add_argument('--eval_full', action='store_true', help='Run full benchmark evaluation (all Section 6 metrics)')
+    parser.add_argument('--n_bootstrap', type=int, default=1000, help='Number of bootstrap samples for CI')
+    parser.add_argument('--n_calibration_bins', type=int, default=15, help='Number of bins for ECE calculation')
 
     # First, parse arguments to identify which were explicitly provided by the user
     # We'll use parse_known_args to get the namespace and also track what was provided
@@ -174,7 +182,7 @@ def main(args):
     #     dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= args.train_dir, test_dir= args.test_dir, input_size= args.input_size, batch_size= args.batch_size)
     result_path = os.path.abspath('results')
     os.makedirs(result_path, exist_ok=True)
-    exp_name = f"demo_{args.dataset}_{args.model_name}_{args.optimizer}_{time.strftime('%Y%m%d_%H%M%S')}"
+    exp_name = f"demo1_{args.dataset}_{args.model_name}_{args.optimizer}_{time.strftime('%Y%m%d_%H%M%S')}"
     os.mkdir(os.path.join(result_path, exp_name))
     
     # Initialize TensorBoard if requested
@@ -499,7 +507,102 @@ def main(args):
                 wandb_run.log_artifact(art)
         except Exception as e:
             print(f"W&B logging artifacts failed: {e}")
-    evaluate_model(model, dataloaders['test'], num_class = num_classes, save_path=os.path.join(result_path, exp_name))
+    
+    # ========== Section 6: Comprehensive Evaluation ==========
+    print(f'\n{"="*60}')
+    print(f'POST-TRAINING EVALUATION')
+    print(f'{"="*60}\n')
+    
+    eval_save_path = os.path.join(result_path, exp_name)
+    
+    # Determine which evaluations to run
+    compute_robustness = args.eval_robustness or args.eval_full
+    compute_calibration = args.eval_calibration or args.eval_full
+    compute_bootstrap = args.eval_bootstrap or args.eval_full
+    
+    if args.eval_full:
+        print("Running FULL benchmark evaluation (all Section 6 metrics)...")
+    elif compute_robustness or compute_calibration or compute_bootstrap:
+        enabled = []
+        if compute_robustness:
+            enabled.append('Robustness')
+        if compute_calibration:
+            enabled.append('Calibration')
+        if compute_bootstrap:
+            enabled.append('Bootstrap CI')
+        print(f"Running selective evaluation: {', '.join(enabled)}")
+    else:
+        print("Running basic evaluation (top-1/5 accuracy, confusion matrix)")
+    
+    # Run evaluation with optional comprehensive metrics
+    eval_results = evaluate_model(
+        model=model,
+        test_dataloader=dataloaders['test'],
+        num_class=num_classes,
+        save_path=eval_save_path,
+        compute_robustness=compute_robustness,
+        compute_calibration=compute_calibration,
+        compute_bootstrap_ci=compute_bootstrap,
+        n_bootstrap=args.n_bootstrap,
+        n_calibration_bins=args.n_calibration_bins
+    )
+    
+    # Log comprehensive metrics to W&B and TensorBoard
+    if compute_robustness and 'robustness' in eval_results:
+        rob = eval_results['robustness']
+        if wandb_run is not None:
+            try:
+                import wandb
+                wandb_run.log({
+                    'eval/robustness_gaussian_noise_delta': rob['gaussian_noise_delta'],
+                    'eval/robustness_salt_pepper_delta': rob['salt_pepper_delta'],
+                    'eval/robustness_gaussian_blur_delta': rob['gaussian_blur_delta'],
+                    'eval/robustness_avg_delta': rob['avg_robustness_delta'],
+                })
+            except Exception as e:
+                print(f"W&B robustness logging failed: {e}")
+        if tb_writer is not None:
+            try:
+                tb_writer.add_scalar('eval/robustness_avg_delta', rob['avg_robustness_delta'], args.num_epochs)
+            except Exception:
+                pass
+    
+    if compute_calibration and 'ece' in eval_results:
+        ece = eval_results['ece']
+        if wandb_run is not None:
+            try:
+                import wandb
+                wandb_run.log({'eval/ece': ece})
+                # Log reliability diagram if exists
+                reliability_path = os.path.join(eval_save_path, 'reliability_diagram.png')
+                if os.path.exists(reliability_path):
+                    wandb_run.log({"eval/reliability_diagram": wandb.Image(reliability_path)})
+            except Exception as e:
+                print(f"W&B calibration logging failed: {e}")
+        if tb_writer is not None:
+            try:
+                tb_writer.add_scalar('eval/ece', ece, args.num_epochs)
+            except Exception:
+                pass
+    
+    if compute_bootstrap and 'bootstrap_ci' in eval_results:
+        bs = eval_results['bootstrap_ci']
+        if wandb_run is not None:
+            try:
+                import wandb
+                wandb_run.log({
+                    'eval/bootstrap_mean_accuracy': bs['mean_accuracy'],
+                    'eval/bootstrap_std': bs['std_accuracy'],
+                    'eval/bootstrap_ci_lower': bs['lower_bound'],
+                    'eval/bootstrap_ci_upper': bs['upper_bound'],
+                })
+            except Exception as e:
+                print(f"W&B bootstrap logging failed: {e}")
+        if tb_writer is not None:
+            try:
+                tb_writer.add_scalar('eval/bootstrap_mean_accuracy', bs['mean_accuracy'], args.num_epochs)
+            except Exception:
+                pass
     
     # Close TensorBoard writer
     if tb_writer is not None:

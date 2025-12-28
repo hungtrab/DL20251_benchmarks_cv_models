@@ -116,8 +116,42 @@ Primary training entry points:
 Train using a config file (from HPO or default configs in `config/`):
 
 ```bash
-python train.py --config config/resnet50_adamw.json --epochs 100 --batch_size 32 --save_dir logs/resnet50_exp
+python train.py --config config/resnet50_adamw.json --epochs 100 --batch_size 32
 ```
+
+**Automatic post-training evaluation (Section 6):**
+
+The `train.py` script now supports automatic comprehensive evaluation after training completes:
+
+```bash
+# Basic training (only top-1/5 accuracy, confusion matrix)
+python train.py --config config/resnet50_adamw.json --epochs 100
+
+# Training + robustness evaluation (Gaussian noise, salt & pepper, blur)
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_robustness
+
+# Training + calibration evaluation (ECE, reliability diagram)
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_calibration
+
+# Training + bootstrap CI (1000 samples)
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_bootstrap
+
+# FULL benchmark evaluation (all Section 6 metrics automatically)
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_full
+
+# Customize bootstrap samples and calibration bins
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_full --n_bootstrap 2000 --n_calibration_bins 20
+```
+
+**Evaluation flags:**
+- `--eval_robustness`: Robustness testing with noise injection (Section 6.1)
+- `--eval_calibration`: ECE and reliability diagram (Section 6.2)
+- `--eval_bootstrap`: Bootstrap confidence interval (Section 6.3)
+- `--eval_full`: Enable all comprehensive metrics above
+- `--n_bootstrap`: Number of bootstrap samples (default: 1000)
+- `--n_calibration_bins`: Number of calibration bins (default: 15)
+
+All evaluation results are saved to the experiment directory and automatically logged to W&B/TensorBoard if enabled.
 
 Fine-tune a checkpoint:
 
@@ -209,10 +243,21 @@ This runs McNemar's test and writes `results/pairwise_comparison.csv` with p-val
 - `evaluate.py`: model evaluation and statistical tests (robustness, ECE, bootstrap, McNemar)
 - `finetune.py`: fine-tuning flow
 - `hpo.py`: Optuna HPO workflows
+- `inspect_hpo.py`: Inspect and analyze Optuna trial results from database
 - `model.py`, `models_dense.py`, `codeae/model.py`: model definitions
 - `pretrain.py`: pretraining flows (if provided)
-- `train.py`: full training pipeline
+- `train.py`: full training pipeline with integrated Section 6 evaluation
 - `trainer.py`: training primitives (SAM, mixup/cutmix, label smoothing, adaptive logic)
+
+**Quick Reference: Evaluation Metrics**
+
+| Flag | Section | Metrics Computed | Output Files |
+|------|---------|------------------|--------------|
+| *(default)* | Basic | Top-1/5 accuracy, confusion matrix | `confusion_matrix.png` |
+| `--eval_robustness` | 6.1 | Gaussian noise, salt & pepper, blur robustness | *(logged to metrics)* |
+| `--eval_calibration` | 6.2 | ECE, reliability diagram | `reliability_diagram.png` |
+| `--eval_bootstrap` | 6.3 | Bootstrap CI (95%) | *(logged to metrics)* |
+| `--eval_full` | 6.1-6.3 | All of the above | All outputs |
 
 ---
 
@@ -247,15 +292,23 @@ pip install -r requirements.txt
 python data_preprocess.py --dataset cifar100 --out data/cifar100_224 --size 224
 
 # 3. HPO (group-level)
-python hpo.py --mode group --trials 70 --n_jobs 4 --storage sqlite:///hpo_results.db
+python hpo.py --mode group --trials 70 --n_jobs 4 --storage hpo_results.db
 
-# 4. Train with selected config
-python train.py --config config/hpo/resnet50_hpo_optimized.json --epochs 100 --batch_size 32 --save_dir logs/resnet50_exp
+# 4. Train with selected config + FULL comprehensive evaluation
+python train.py --config config/hpo/resnet50_hpo_optimized.json \
+    --epochs 100 --batch_size 32 \
+    --eval_full \
+    --use_tensorboard --use_wandb
 
-# 5. Evaluate fully
-python evaluate.py --model logs/resnet50_exp/best.pth --dataset cifar100 --batch_size 64 --save_path results/resnet50 --full
+# 5. (Optional) Standalone evaluation if needed later
+python evaluate.py --model logs/resnet50_exp/best.pth \
+    --dataset cifar100 --batch_size 64 \
+    --save_path results/resnet50 --full
 
-# 6. Pairwise comparisons (python snippet)
+# 6. Inspect HPO results
+python inspect_hpo.py --storage hpo_results.db --top 10
+
+# 7. Pairwise comparisons (python snippet)
 python - <<'PY'
 from evaluate import pairwise_model_comparison
 from dataset_usage_examples import get_test_loader
@@ -270,6 +323,13 @@ models = {
 pairwise_model_comparison(models, test_loader, save_path='results/')
 PY
 ```
+
+**Note:** With `--eval_full` flag in step 4, the training script automatically runs:
+- Robustness testing (Gaussian noise, salt & pepper, blur)
+- Calibration evaluation (ECE, reliability diagram)
+- Bootstrap confidence interval (1000 samples)
+
+All metrics are saved to the experiment directory and logged to W&B/TensorBoard.
 
 ---
 

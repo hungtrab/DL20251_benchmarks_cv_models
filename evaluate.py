@@ -10,6 +10,7 @@ import time
 import copy
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 import seaborn as sns
 from typing import Dict, List, Optional, Tuple, Any
@@ -368,44 +369,59 @@ def mcnemar_test(
     a_correct = np.array(a_correct)
     b_correct = np.array(b_correct)
     
+    return _mcnemar_test_from_predictions(a_correct, b_correct)
+
+
+def _mcnemar_test_from_predictions(
+    preds_a: np.ndarray,
+    preds_b: np.ndarray,
+    labels: np.ndarray
+) -> Dict[str, Any]:
+    """
+    Internal helper: Perform McNemar's test from prediction arrays.
+    
+    Args:
+        preds_a: Predictions from model A
+        preds_b: Predictions from model B
+        labels: Ground truth labels
+    
+    Returns:
+        Dictionary with test statistic, p-value, significance, and effect size
+    """
+    # Determine correct/incorrect for each model
+    a_correct = (preds_a == labels)
+    b_correct = (preds_b == labels)
+    
     # Build contingency table
     # n_01: A wrong, B correct
     # n_10: A correct, B wrong
-    n_01 = np.sum((~a_correct.astype(bool)) & b_correct.astype(bool))
-    n_10 = np.sum(a_correct.astype(bool) & (~b_correct.astype(bool)))
+    n_01 = np.sum((~a_correct) & b_correct)
+    n_10 = np.sum(a_correct & (~b_correct))
     
     # McNemar's test (with continuity correction)
     if n_01 + n_10 == 0:
         return {
-            'statistic': 0,
+            'chi_squared': 0.0,
             'p_value': 1.0,
             'n_01': int(n_01),
             'n_10': int(n_10),
-            'conclusion': 'No difference (both models make same predictions)',
-            'significant': False
+            'is_significant': False,
+            'effect_size': 0.0
         }
     
-    statistic = ((abs(n_01 - n_10) - 1) ** 2) / (n_01 + n_10)
-    p_value = 1 - stats.chi2.cdf(statistic, df=1)
+    chi_squared = ((abs(n_01 - n_10) - 1) ** 2) / (n_01 + n_10)
+    p_value = 1 - stats.chi2.cdf(chi_squared, df=1)
     
-    # Determine which model is better
-    if p_value < 0.05:
-        if n_01 > n_10:
-            conclusion = "Model B is significantly better than Model A"
-        else:
-            conclusion = "Model A is significantly better than Model B"
-        significant = True
-    else:
-        conclusion = "No significant difference between models"
-        significant = False
+    # Effect size (Cohen's g)
+    effect_size = (n_01 - n_10) / np.sqrt(n_01 + n_10)
     
     return {
-        'statistic': statistic,
-        'p_value': p_value,
+        'chi_squared': float(chi_squared),
+        'p_value': float(p_value),
         'n_01': int(n_01),
         'n_10': int(n_10),
-        'conclusion': conclusion,
-        'significant': significant
+        'is_significant': p_value < 0.05,
+        'effect_size': float(effect_size)
     }
 
 
@@ -696,7 +712,7 @@ def pairwise_model_comparison(
             preds_b = model_predictions[name_b]['predictions']
             labels = model_predictions[name_a]['labels']
             
-            result = mcnemar_test(preds_a, preds_b, labels)
+            result = _mcnemar_test_from_predictions(preds_a, preds_b, labels)
             
             acc_diff = model_predictions[name_a]['accuracy'] - model_predictions[name_b]['accuracy']
             winner = name_a if acc_diff > 0 else (name_b if acc_diff < 0 else "Tie")
