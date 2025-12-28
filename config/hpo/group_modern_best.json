@@ -1,0 +1,24 @@
+{
+  "hpo_info": {
+    "group": "modern",
+    "best_val_acc": 0.1807,
+    "n_trials": 3,
+    "dataset": "cifar100",
+    "timestamp": "2025-12-28T19:42:24.506279"
+  },
+  "dataset_info": {
+    "dataset": "cifar100",
+    "input_size": 224,
+    "batch_size": 32
+  },
+  "train_info": {
+    "optimizer": "adamw",
+    "learning_rate": 1.3290714516290662e-05,
+    "weight_decay": 0.0017553094876847175,
+    "scheduler": "step",
+    "dropout_rate": 0.0822594356705551,
+    "label_smoothing": 0.09252602019601582,
+    "step_size": 13,
+    "step_gamma": 0.3480043372029331
+  }
+}
