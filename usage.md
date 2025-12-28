@@ -67,9 +67,41 @@ python hpo.py --mode single --model resnet50 --trials 70 --storage sqlite:///hpo
 
 After HPO finishes, optimized configs are stored in `config/hpo/` (e.g., `config/hpo/resnet50_hpo_optimized.json`). Use these for training.
 
+**Inspecting HPO results:**
+
+Use `inspect_hpo.py` to analyze trial results from the database:
+
+```bash
+# List all studies in the database
+python inspect_hpo.py --storage hpo_results.db --list
+
+# Show top 10 trials for a specific study
+python inspect_hpo.py --storage hpo_results.db --study hpo_study_legacy --top 10
+
+# Export all trials to CSV for analysis
+python inspect_hpo.py --storage hpo_results.db --study hpo_study_legacy --export
+
+# Compare all studies
+python inspect_hpo.py --storage hpo_results.db --compare
+```
+
+**What's logged in the database:**
+- **Trial parameters**: learning rate, weight decay, dropout, optimizer, scheduler, label smoothing
+- **Trial value**: validation accuracy (maximize)
+- **Trial state**: COMPLETE, PRUNED, or FAILED
+- **Intermediate values**: validation accuracy at each epoch (for pruning)
+- **Timestamps**: start and end times for each trial
+
+**How to identify good trials:**
+- Trials are ranked by validation accuracy (higher is better)
+- Use `inspect_hpo.py` to see the top trials and their hyperparameters
+- The best trial's parameters are automatically saved to `config/hpo/<model>_hpo_optimized.json`
+- Compare across studies using `--compare` to see which model group performs best
+
 Tips:
 - Use `--n_jobs` to parallelize multiple trials if you have multiple GPUs or a cluster.
 - The HPO module uses a `MedianPruner` and `TPESampler` by default; change via `hpo.py` if needed.
+- Database persists all trials — you can resume HPO or add more trials later.
 
 ---
 

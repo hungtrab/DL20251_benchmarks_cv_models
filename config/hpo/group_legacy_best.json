@@ -1,10 +1,10 @@
 {
   "hpo_info": {
     "group": "legacy",
-    "best_val_acc": 0.4932,
-    "n_trials": 3,
+    "best_val_acc": 0.2497,
+    "n_trials": 1,
     "dataset": "cifar100",
-    "timestamp": "2025-12-28T19:16:07.444446"
+    "timestamp": "2025-12-28T16:02:08.966071"
   },
   "dataset_info": {
     "dataset": "cifar100",
@@ -12,11 +12,11 @@
     "batch_size": 32
   },
   "train_info": {
-    "optimizer": "sgd",
-    "learning_rate": 0.0012975781014350502,
-    "weight_decay": 0.0012293209477908917,
+    "optimizer": "adamw",
+    "learning_rate": 0.001570297088405539,
+    "weight_decay": 0.0024810409748678114,
     "scheduler": "cosine",
-    "dropout_rate": 0.3378552348176848,
-    "label_smoothing": 0.10315261644325989
+    "dropout_rate": 0.4330880728874676,
+    "label_smoothing": 0.12022300234864176
   }
 }
