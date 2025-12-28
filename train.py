@@ -94,7 +94,7 @@ def parse_args(input_args=None):
     parser.add_argument('--criterion', type=str, default='cross_entropy', choices=['cross_entropy', 'mse', 'hinge'], help='Loss function to use')
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'adamw', 'sgd'], help='Optimizer to use')
     parser.add_argument('--scheduler', type=str, default='constant', choices=['constant', 'linear', 'cosine'], help='Learning rate scheduler to use')
-    parser.add_argument('--num_warmup_steps', type=int, default=0, help='Number of warmup steps for the scheduler')
+    parser.add_argument('--num_warmup_steps', type=int, default=500, help='Number of warmup steps for the scheduler')
     parser.add_argument('--dropout_rate', type=float, default=0.4, help='Dropout rate for model')
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
