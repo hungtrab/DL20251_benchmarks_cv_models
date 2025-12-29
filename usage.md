@@ -127,6 +127,13 @@ The `train.py` script now supports automatic comprehensive evaluation after trai
 # Basic training (only top-1/5 accuracy, confusion matrix)
 python train.py --config config/resnet50_adamw.json --epochs 100
 
+# Training + Section 4.3 features (Mixup, CutMix, SAM, Adaptive Training)
+python train.py --config config/resnet50_adamw.json --epochs 100 \
+    --use_mixup --mixup_alpha 0.2 \
+    --use_cutmix --cutmix_alpha 1.0 --cutmix_prob 0.5 \
+    --use_sam --sam_rho 0.05 \
+    --adaptive_training --adaptive_check_interval 5
+
 # Training + robustness evaluation (Gaussian noise, salt & pepper, blur)
 python train.py --config config/resnet50_adamw.json --epochs 100 --eval_robustness
 
@@ -136,20 +143,41 @@ python train.py --config config/resnet50_adamw.json --epochs 100 --eval_calibrat
 # Training + bootstrap CI (1000 samples)
 python train.py --config config/resnet50_adamw.json --epochs 100 --eval_bootstrap
 
-# FULL benchmark evaluation (all Section 6 metrics automatically)
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_full
+# Training + efficiency benchmark (throughput, latency, VRAM, model size)
+python train.py --config config/resnet50_adamw.json --epochs 100 --eval_efficiency
+
+# FULL benchmark (Section 4.3 + Section 6 + Section 2 - ALL metrics)
+python train.py --config config/resnet50_adamw.json --epochs 100 \
+    --use_mixup --use_cutmix --use_sam --adaptive_training \
+    --eval_full --eval_efficiency
 
 # Customize bootstrap samples and calibration bins
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_full --n_bootstrap 2000 --n_calibration_bins 20
+python train.py --config config/resnet50_adamw.json --epochs 100 \
+    --eval_full --n_bootstrap 2000 --n_calibration_bins 20
 ```
 
-**Evaluation flags:**
+**Section 4.3 - Anti-Overfitting & Adaptive Training flags:**
+- `--use_mixup`: Enable Mixup data augmentation
+- `--mixup_alpha`: Mixup alpha parameter (default: 0.2)
+- `--use_cutmix`: Enable CutMix data augmentation
+- `--cutmix_alpha`: CutMix alpha parameter (default: 1.0)
+- `--cutmix_prob`: Probability of applying CutMix (default: 0.5)
+- `--use_sam`: Enable SAM (Sharpness-Aware Minimization) optimizer
+- `--sam_rho`: SAM rho parameter for perturbation (default: 0.05)
+- `--label_smoothing`: Label smoothing factor (default: 0.0)
+- `--adaptive_training`: Enable adaptive training (auto-adjust WD, aug, SAM based on generalization gap)
+- `--adaptive_check_interval`: Check interval for adaptive training in epochs (default: 5)
+
+**Section 6 - Evaluation flags:**
 - `--eval_robustness`: Robustness testing with noise injection (Section 6.1)
 - `--eval_calibration`: ECE and reliability diagram (Section 6.2)
 - `--eval_bootstrap`: Bootstrap confidence interval (Section 6.3)
 - `--eval_full`: Enable all comprehensive metrics above
 - `--n_bootstrap`: Number of bootstrap samples (default: 1000)
 - `--n_calibration_bins`: Number of calibration bins (default: 15)
+
+**Section 2 - Efficiency Benchmark flags:**
+- `--eval_efficiency`: Benchmark efficiency (throughput, latency, VRAM, model size)
 
 All evaluation results are saved to the experiment directory and automatically logged to W&B/TensorBoard if enabled.
 

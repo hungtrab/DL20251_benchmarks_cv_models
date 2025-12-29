@@ -15,7 +15,7 @@
     "optimizer": "sgd",
     "learning_rate": 0.001070117399171084,
     "weight_decay": 2.1153061174029318e-05,
-    "scheduler": "step",
+    "scheduler": "cosine",
     "dropout_rate": 0.33201107141362185,
     "label_smoothing": 0.021001845961352728,
     "step_size": 6,

@@ -5,6 +5,7 @@ from trainer import Trainer, count_images_per_class, calculate_class_weights
 from data_preprocess import prepare_data, prepare_builtin_data
 from model import *
 from models_dense import convnextv2_tiny, convnextv2_base
+from benchmark_efficiency import benchmark_efficiency
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -13,7 +14,7 @@ import random
 import json
 from pathlib import Path
 from typing import Any, Dict
-from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR, ConstantLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR, ConstantLR, StepLR, OneCycleLR
 from evaluate import evaluate_model
 from torch.utils.tensorboard import SummaryWriter
 
@@ -50,6 +51,9 @@ def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
             'use_class_weights': 'use_class_weights',
             'weight_type': 'weight_type',
             'seed': 'seed',
+            'step_size': 'step_size',
+            'step_gamma': 'step_gamma',
+            'max_lr_factor': 'max_lr_factor',
         },
     }
     
@@ -65,7 +69,8 @@ def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
         'dataset', 'input_size', 'batch_size',
         'model_name', 'model_type', 'dropout_rate', 'pretrained',
         'num_epochs', 'learning_rate', 'optimizer', 'criterion', 'scheduler',
-        'num_warmup_steps', 'use_class_weights', 'weight_type', 'seed'
+        'num_warmup_steps', 'use_class_weights', 'weight_type', 'seed',
+        'step_size', 'step_gamma', 'max_lr_factor'
     ]:
         if key in cfg:
             flat[key] = cfg[key]
@@ -93,8 +98,11 @@ def parse_args(input_args=None):
     # parser.add_argument('--save_path', type=str, default='best_model.pth', help='Path to save the best model')
     parser.add_argument('--criterion', type=str, default='cross_entropy', choices=['cross_entropy', 'mse', 'hinge'], help='Loss function to use')
     parser.add_argument('--optimizer', type=str, default='adam', choices=['adam', 'adamw', 'sgd'], help='Optimizer to use')
-    parser.add_argument('--scheduler', type=str, default='constant', choices=['constant', 'linear', 'cosine'], help='Learning rate scheduler to use')
+    parser.add_argument('--scheduler', type=str, default='constant', choices=['constant', 'linear', 'cosine', 'step', 'onecycle'], help='Learning rate scheduler to use')
     parser.add_argument('--num_warmup_steps', type=int, default=500, help='Number of warmup steps for the scheduler')
+    parser.add_argument('--step_size', type=int, default=10, help='Step size for step scheduler (in epochs)')
+    parser.add_argument('--step_gamma', type=float, default=0.1, help='Gamma for step scheduler')
+    parser.add_argument('--max_lr_factor', type=float, default=10.0, help='Max LR multiplier for onecycle scheduler')
     parser.add_argument('--dropout_rate', type=float, default=0.4, help='Dropout rate for model')
     parser.add_argument('--use_class_weights', action='store_true', help='Use class weights for loss function')
     parser.add_argument('--weight_type', type=str, default='inverse', choices=['inverse', 'sqrt_inverse'], help='Type of class weights to use')
@@ -110,11 +118,24 @@ def parse_args(input_args=None):
     parser.add_argument('--use_tensorboard', action='store_true', help='Enable TensorBoard logging')
     parser.add_argument('--tensorboard_log_dir', type=str, default='logs', help='TensorBoard log directory')
     
+    # Section 4.3: Anti-Overfitting & Adaptive Learning
+    parser.add_argument('--use_mixup', action='store_true', help='Enable Mixup data augmentation')
+    parser.add_argument('--mixup_alpha', type=float, default=0.2, help='Mixup alpha parameter')
+    parser.add_argument('--use_cutmix', action='store_true', help='Enable CutMix data augmentation')
+    parser.add_argument('--cutmix_alpha', type=float, default=1.0, help='CutMix alpha parameter')
+    parser.add_argument('--cutmix_prob', type=float, default=0.5, help='Probability of applying CutMix')
+    parser.add_argument('--use_sam', action='store_true', help='Enable SAM (Sharpness-Aware Minimization) optimizer')
+    parser.add_argument('--sam_rho', type=float, default=0.05, help='SAM rho parameter for perturbation')
+    parser.add_argument('--label_smoothing', type=float, default=0.0, help='Label smoothing factor')
+    parser.add_argument('--adaptive_training', action='store_true', help='Enable adaptive training (auto-adjust WD, aug, SAM)')
+    parser.add_argument('--adaptive_check_interval', type=int, default=5, help='Check interval for adaptive training (epochs)')
+    
     # Evaluation options (Section 6 - Comprehensive Evaluation)
     parser.add_argument('--eval_robustness', action='store_true', help='Evaluate robustness with noise injection (Section 6.1)')
     parser.add_argument('--eval_calibration', action='store_true', help='Evaluate calibration with ECE (Section 6.2)')
     parser.add_argument('--eval_bootstrap', action='store_true', help='Compute bootstrap confidence interval (Section 6.3)')
     parser.add_argument('--eval_full', action='store_true', help='Run full benchmark evaluation (all Section 6 metrics)')
+    parser.add_argument('--eval_efficiency', action='store_true', help='Benchmark efficiency (throughput, latency, VRAM, model size)')
     parser.add_argument('--n_bootstrap', type=int, default=1000, help='Number of bootstrap samples for CI')
     parser.add_argument('--n_calibration_bins', type=int, default=15, help='Number of bins for ECE calculation')
 
@@ -254,13 +275,13 @@ def main(args):
     elif args.model_name == 'vgg16_bn':
         model = VGG16BatchNorm(num_classes= num_classes, in_channels = 3, dropout_rate= 0.4, input_size=args.input_size)
     elif args.model_name == 'resnet18':
-        model = resnet18(num_classes = num_classes, in_channels= 3)
+        model = resnet18(num_classes = num_classes, in_channels= 3, dropout_rate=args.dropout_rate)
     elif args.model_name == 'resnet34':
-        model = resnet34(num_classes = num_classes, in_channels= 3)
+        model = resnet34(num_classes = num_classes, in_channels= 3, dropout_rate=args.dropout_rate)
     elif args.model_name == 'resnet50':
-        model = resnet50(num_classes= num_classes, in_channels= 3)
+        model = resnet50(num_classes= num_classes, in_channels= 3, dropout_rate=args.dropout_rate)
     elif args.model_name == 'resnet101':
-        model = resnet101(num_classes= num_classes, in_channels= 3)
+        model = resnet101(num_classes= num_classes, in_channels= 3, dropout_rate=args.dropout_rate)
     elif args.model_name == 'inceptionv3':
         model = InceptionV3(num_classes=num_classes, in_channels=3)
     elif args.model_name == 'mobilenetv3_s':
@@ -422,6 +443,23 @@ def main(args):
                 T_max=decay_steps, # Decay từ từ trong suốt quãng đường còn lại
                 eta_min=eta_min
             )
+        elif args.scheduler == 'step':
+            step_size = args.step_size * len(dataloaders['train'])  # Convert epochs to steps
+            decay_scheduler = StepLR(
+                optimizer,
+                step_size=step_size,
+                gamma=args.step_gamma
+            )
+        elif args.scheduler == 'onecycle':
+            max_lr = args.learning_rate * args.max_lr_factor
+            # OneCycleLR doesn't use warmup_scheduler, it handles warmup internally
+            scheduler = OneCycleLR(
+                optimizer,
+                max_lr=max_lr,
+                total_steps=total_steps,
+                pct_start=warmup_steps / total_steps,
+                anneal_strategy='cos'
+            )
         elif args.scheduler == 'linear':
             decay_scheduler = LinearLR(
                 optimizer,
@@ -429,23 +467,32 @@ def main(args):
                 end_factor=0.01,
                 total_iters=decay_steps
             )
-            # ... (các loại khác)
-
-            
         else:
             raise ValueError(f"Unknown scheduler type: {args.scheduler}")
 
         # Nối lại: Hết warmup là sang decay luôn, không có chuyện "nghỉ giải lao" (steady)
-        scheduler = SequentialLR(
-            optimizer,
-            schedulers=[warmup_scheduler, decay_scheduler],
-            milestones=[warmup_steps]
-        )
+        # Note: OneCycleLR handles warmup internally, so we don't use SequentialLR for it
+        if args.scheduler != 'onecycle':
+            scheduler = SequentialLR(
+                optimizer,
+                schedulers=[warmup_scheduler, decay_scheduler],
+                milestones=[warmup_steps]
+            )
     
     # Load scheduler state if resuming
     if loaded_scheduler_state is not None and scheduler is not None:
         scheduler.load_state_dict(loaded_scheduler_state)
         print("✓ Scheduler state loaded")
+    
+    # Setup Adaptive Training Config if enabled
+    adaptive_config = None
+    if args.adaptive_training:
+        from trainer import AdaptiveTrainingConfig
+        adaptive_config = AdaptiveTrainingConfig(
+            enabled=True,
+            check_interval=args.adaptive_check_interval
+        )
+        print(f"✓ Adaptive Training enabled (check interval: {args.adaptive_check_interval} epochs)")
     
     best_model_path = os.path.join(result_path, exp_name, 'best_model.pth')
     trainer = Trainer(
@@ -460,6 +507,15 @@ def main(args):
         save_path=best_model_path,
         wandb_run=wandb_run,
         tb_writer=tb_writer,
+        # Section 4.3: Anti-Overfitting & Adaptive Learning
+        use_mixup=args.use_mixup,
+        mixup_alpha=args.mixup_alpha,
+        use_cutmix=args.use_cutmix,
+        cutmix_alpha=args.cutmix_alpha,
+        cutmix_prob=args.cutmix_prob,
+        use_sam=args.use_sam,
+        sam_rho=args.sam_rho,
+        adaptive_config=adaptive_config,
     )
     
     # Restore history and best metrics if resuming
@@ -601,6 +657,44 @@ def main(args):
         if tb_writer is not None:
             try:
                 tb_writer.add_scalar('eval/bootstrap_mean_accuracy', bs['mean_accuracy'], args.num_epochs)
+            except Exception:
+                pass
+    
+    # ========== Section 2: Efficiency Benchmark ==========
+    if args.eval_efficiency:
+        print(f'\n{"="*60}')
+        print(f'EFFICIENCY BENCHMARK (Section 2)')
+        print(f'{"="*60}\n')
+        
+        efficiency_results = benchmark_efficiency(
+            model=model,
+            test_dataloader=dataloaders['test'],
+            device=device,
+            input_size=(3, args.input_size, args.input_size),
+            batch_size=args.batch_size,
+            save_path=eval_save_path
+        )
+        
+        # Log efficiency metrics to W&B and TensorBoard
+        if wandb_run is not None:
+            try:
+                import wandb
+                wandb_run.log({
+                    'efficiency/model_size_mb': efficiency_results['model_size']['size_mb'],
+                    'efficiency/num_params': efficiency_results['model_size']['num_params'],
+                    'efficiency/throughput_imgs_per_sec': efficiency_results['throughput']['throughput_imgs_per_sec'],
+                    'efficiency/mean_latency_ms': efficiency_results['latency']['mean_latency_ms'],
+                    'efficiency/p95_latency_ms': efficiency_results['latency']['p95_latency_ms'],
+                })
+                if 'vram' in efficiency_results and 'peak_vram_mb' in efficiency_results['vram']:
+                    wandb_run.log({'efficiency/peak_vram_mb': efficiency_results['vram']['peak_vram_mb']})
+            except Exception as e:
+                print(f"W&B efficiency logging failed: {e}")
+        
+        if tb_writer is not None:
+            try:
+                tb_writer.add_scalar('efficiency/throughput', efficiency_results['throughput']['throughput_imgs_per_sec'], args.num_epochs)
+                tb_writer.add_scalar('efficiency/latency_ms', efficiency_results['latency']['mean_latency_ms'], args.num_epochs)
             except Exception:
                 pass
     

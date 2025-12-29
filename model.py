@@ -423,9 +423,11 @@ class BottleNeck(nn.Module):
     
 class ResNet(nn.Module):
     def __init__(self, block: Type[Union[BasicBlock, BottleNeck]], layers: List[int],
-                 num_classes: int = 1000, in_channels: int = 3, zero_init_residual: bool = False):
+                 num_classes: int = 1000, in_channels: int = 3, zero_init_residual: bool = False,
+                 dropout_rate: float = 0.0):
         super(ResNet, self).__init__()
         self.inplanes = 64
+        self.dropout_rate = dropout_rate
         
         self.conv1 = nn.Conv2d(in_channels, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(self.inplanes)
@@ -439,6 +441,13 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        
+        # Add dropout before final FC layer if dropout_rate > 0
+        if dropout_rate > 0:
+            self.dropout = nn.Dropout(p=dropout_rate)
+        else:
+            self.dropout = None
+        
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         
         # Initialize weights
@@ -487,41 +496,50 @@ class ResNet(nn.Module):
         
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        
+        # Apply dropout before final FC layer
+        if self.dropout is not None:
+            x = self.dropout(x)
+        
         x = self.fc(x)
         
         return x
 
-def resnet18(num_classes: int = 1000, in_channels: int = 3) -> ResNet:
+def resnet18(num_classes: int = 1000, in_channels: int = 3, dropout_rate: float = 0.0) -> ResNet:
     """Constructs a ResNet-18 model.
     Args:
         num_classes (int): Number of classes for the output layer.
         in_channels (int): Number of input channels.
+        dropout_rate (float): Dropout rate before final FC layer.
     """
-    return ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes, in_channels=in_channels)
+    return ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_classes, in_channels=in_channels, dropout_rate=dropout_rate)
 
-def resnet34(num_classes: int = 1000, in_channels: int = 3) -> ResNet:
+def resnet34(num_classes: int = 1000, in_channels: int = 3, dropout_rate: float = 0.0) -> ResNet:
     """Constructs a ResNet-34 model.
     Args:
         num_classes (int): Number of classes for the output layer.
         in_channels (int): Number of input channels.
+        dropout_rate (float): Dropout rate before final FC layer.
     """
-    return ResNet(BasicBlock, [3, 4, 6, 3], num_classes=num_classes, in_channels=in_channels)
+    return ResNet(BasicBlock, [3, 4, 6, 3], num_classes=num_classes, in_channels=in_channels, dropout_rate=dropout_rate)
 
-def resnet50(num_classes: int = 1000, in_channels: int = 3) -> ResNet:
+def resnet50(num_classes: int = 1000, in_channels: int = 3, dropout_rate: float = 0.0) -> ResNet:
     """Constructs a ResNet-50 model.
     Args:
         num_classes (int): Number of classes for the output layer.
         in_channels (int): Number of input channels.
+        dropout_rate (float): Dropout rate before final FC layer.
     """
-    return ResNet(BottleNeck, [3, 4, 6, 3], num_classes=num_classes, in_channels=in_channels)
+    return ResNet(BottleNeck, [3, 4, 6, 3], num_classes=num_classes, in_channels=in_channels, dropout_rate=dropout_rate)
 
-def resnet101(num_classes: int = 1000, in_channels: int = 3) -> ResNet:
+def resnet101(num_classes: int = 1000, in_channels: int = 3, dropout_rate: float = 0.0) -> ResNet:
     """Constructs a ResNet-101 model.
     Args:
         num_classes (int): Number of classes for the output layer.
         in_channels (int): Number of input channels.
+        dropout_rate (float): Dropout rate before final FC layer.
     """
-    return ResNet(BottleNeck, [3, 4, 23, 3], num_classes=num_classes, in_channels=in_channels)
+    return ResNet(BottleNeck, [3, 4, 23, 3], num_classes=num_classes, in_channels=in_channels, dropout_rate=dropout_rate)
 
 # Inception V1 model
 
