@@ -761,12 +761,12 @@ def parse_args():
                         help='Model name for finetune/single mode')
     
     # Dataset
-    parser.add_argument('--dataset', type=str, default='cifar100',
-                        choices=['cifar100', 'mnist', 'fashionmnist', 'intel', 'mit', 'caltech101'],
+    parser.add_argument('--dataset', type=str, default='cifar100_224',
+                        choices=['cifar100', 'mnist', 'fashionmnist', 'intel', 'mit', 'caltech101', 'cifar100_224'],
                         help='Dataset to use for HPO')
     parser.add_argument('--input_size', type=int, default=224,
                         help='Input image size')
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int, default=64,
                         help='Batch size for training')
     
     # HPO settings
@@ -774,7 +774,7 @@ def parse_args():
                         help='Number of HPO trials for group optimization')
     parser.add_argument('--finetune_trials', type=int, default=15,
                         help='Number of fine-tuning trials per model')
-    parser.add_argument('--epochs', type=int, default=25,
+    parser.add_argument('--epochs', type=int, default=50,
                         help='Number of epochs per trial')
     parser.add_argument('--warmup_steps', type=int, default=500,
                         help='Number of warmup steps for scheduler')

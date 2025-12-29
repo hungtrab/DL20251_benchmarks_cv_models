@@ -207,7 +207,7 @@ def parse_args(input_args=None):
     # parser.add_argument('--train_dir', type=str, help='Path to the training data directory')
     # parser.add_argument('--test_dir', type=str, help='Path to the testing data directory')
     # parser.add_argument('--mnist_data_dir', type=str, default=None, help='Directory to store MNIST data')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101', 'cifar100_224q'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101', 'cifar100_224'],
                         help='Dataset to use for training and evaluation')
     parser.add_argument('--input_size', type=int, default=224, help='Input size for the model')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training and validation')
