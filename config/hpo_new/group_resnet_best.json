@@ -1,7 +1,7 @@
 {
   "hpo_info": {
     "group": "resnet",
-    "best_val_acc": 0.0,
+    "best_val_acc": 0.7452,
     "n_trials": 48,
     "dataset": "cifar100_224",
     "timestamp": "2025-12-29T13:13:15.223910"
@@ -13,11 +13,11 @@
   },
   "train_info": {
     "optimizer": "sgd",
-    "learning_rate": 0.0006038005888271501,
-    "weight_decay": 5.2846942910694804e-05,
-    "scheduler": "onecycle",
-    "dropout_rate": 0.3174493167650064,
-    "label_smoothing": 0.16341336123592115,
+    "learning_rate": 0.005967,
+    "weight_decay": 0.002252,
+    "scheduler": "step",
+    "dropout_rate": 0.401,
+    "label_smoothing": 0.098,
     "max_lr_factor": 8.212869932373064
   }
 }

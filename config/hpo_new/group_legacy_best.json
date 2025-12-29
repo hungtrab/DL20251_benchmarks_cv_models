@@ -1,0 +1,22 @@
+{
+  "hpo_info": {
+    "group": "legacy",
+    "best_val_acc": 0.2497,
+    "n_trials": 1,
+    "dataset": "cifar100",
+    "timestamp": "2025-12-28T16:02:08.966071"
+  },
+  "dataset_info": {
+    "dataset": "cifar100",
+    "input_size": 224,
+    "batch_size": 32
+  },
+  "train_info": {
+    "optimizer": "adamw",
+    "learning_rate": 0.001570297088405539,
+    "weight_decay": 0.0024810409748678114,
+    "scheduler": "cosine",
+    "dropout_rate": 0.4330880728874676,
+    "label_smoothing": 0.12022300234864176
+  }
+}
