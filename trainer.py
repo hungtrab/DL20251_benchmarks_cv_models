@@ -32,6 +32,11 @@ class SAM(torch.optim.Optimizer):
         self.base_optimizer = base_optimizer
         self.param_groups = self.base_optimizer.param_groups
         
+        # Add SAM-specific defaults to base optimizer's param_groups
+        for group in self.param_groups:
+            group.setdefault('rho', rho)
+            group.setdefault('adaptive', adaptive)
+        
     @torch.no_grad()
     def first_step(self, zero_grad: bool = False):
         """Compute and apply the perturbation (first forward-backward pass)."""
