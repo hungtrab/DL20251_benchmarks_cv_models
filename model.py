@@ -1303,6 +1303,22 @@ class MobileNetV3(nn.Module):
             nn.Linear(1280, num_classes)
         )
         
+        # Truncated Normal Initialization (std=0.02, bias=0)
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+        
     def forward(self, x):
         x = self.first_conv(x)
         for block in self.blocks:
@@ -1466,6 +1482,22 @@ class EfficientNetV2(nn.Module):
             nn.Dropout(dropout_rate, inplace=True),
             nn.Linear(last_channel, num_classes)
         )
+        
+        # Truncated Normal Initialization (std=0.02, bias=0)
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.trunc_normal_(m.weight, std=0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = self.features(x)
