@@ -116,7 +116,55 @@ Primary training entry points:
 Train using a config file (from HPO or default configs in `config/`):
 
 ```bash
-python train.py --config config/resnet50_adamw.json --epochs 100 --batch_size 32
+python train.py --config config/resnet50_adamw.json --num_epochs 100 --batch_size 32
+```
+
+**Basic training options:**
+
+```bash
+# Basic training with default settings
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100
+
+# Training with validation split (20% of training data)
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 --val --val_size 0.2
+
+# Training with custom optimizer and scheduler
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 \
+    --optimizer adamw --learning_rate 0.001 \
+    --scheduler cosine --num_warmup_steps 500
+
+# Training with step scheduler (step every 10 epochs, gamma=0.1)
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 \
+    --scheduler step --step_size 10 --step_gamma 0.1
+
+# Training with onecycle scheduler (max_lr = lr * 10)
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 \
+    --scheduler onecycle --max_lr_factor 10.0
+
+# Fast training with mixed precision (AMP)
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 --fasttrain
+
+# Resume from checkpoint
+python train.py --model_name resnet50 --dataset cifar100 --num_epochs 100 \
+    --resume results/best_model.pth
+```
+
+**ConvNeXt V2 with self-supervised pretraining (FCMAE):**
+
+```bash
+# ConvNeXt V2 with FCMAE pretraining (50 epochs) followed by supervised training
+python train.py --model_name convnextv2_t --dataset cifar100 --num_epochs 100 \
+    --conv_pretrain --conv_pretrain_epochs 50 \
+    --conv_mask_ratio 0.6 --conv_pretrain_lr 1.5e-4 --conv_pretrain_wd 0.05
+
+# ConvNeXt V2 Base with extended pretraining
+python train.py --model_name convnextv2_b --dataset intel --num_epochs 200 \
+    --conv_pretrain --conv_pretrain_epochs 100 \
+    --conv_mask_ratio 0.7 --val --val_size 0.2
+
+# Use pretrained checkpoint (without FCMAE)
+python train.py --model_name convnextv2_t --dataset cifar100 --num_epochs 100 \
+    --pretrained_path weights/convnext_pretrained.pth
 ```
 
 **Automatic post-training evaluation (Section 6):**
@@ -125,38 +173,70 @@ The `train.py` script now supports automatic comprehensive evaluation after trai
 
 ```bash
 # Basic training (only top-1/5 accuracy, confusion matrix)
-python train.py --config config/resnet50_adamw.json --epochs 100
+python train.py --config config/resnet50_adamw.json --num_epochs 100
 
 # Training + Section 4.3 features (Mixup, CutMix, SAM, Adaptive Training)
-python train.py --config config/resnet50_adamw.json --epochs 100 \
+python train.py --config config/resnet50_adamw.json --num_epochs 100 \
     --use_mixup --mixup_alpha 0.2 \
     --use_cutmix --cutmix_alpha 1.0 --cutmix_prob 0.5 \
     --use_sam --sam_rho 0.05 \
     --adaptive_training --adaptive_check_interval 5
 
 # Training + robustness evaluation (Gaussian noise, salt & pepper, blur)
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_robustness
+python train.py --config config/resnet50_adamw.json --num_epochs 100 --eval_robustness
 
 # Training + calibration evaluation (ECE, reliability diagram)
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_calibration
+python train.py --config config/resnet50_adamw.json --num_epochs 100 --eval_calibration
 
 # Training + bootstrap CI (1000 samples)
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_bootstrap
+python train.py --config config/resnet50_adamw.json --num_epochs 100 --eval_bootstrap
 
 # Training + efficiency benchmark (throughput, latency, VRAM, model size)
-python train.py --config config/resnet50_adamw.json --epochs 100 --eval_efficiency
+python train.py --config config/resnet50_adamw.json --num_epochs 100 --eval_efficiency
 
 # FULL benchmark (Section 4.3 + Section 6 + Section 2 - ALL metrics)
-python train.py --config config/resnet50_adamw.json --epochs 100 \
+python train.py --config config/resnet50_adamw.json --num_epochs 100 \
     --use_mixup --use_cutmix --use_sam --adaptive_training \
     --eval_full --eval_efficiency
 
 # Customize bootstrap samples and calibration bins
-python train.py --config config/resnet50_adamw.json --epochs 100 \
+python train.py --config config/resnet50_adamw.json --num_epochs 100 \
     --eval_full --n_bootstrap 2000 --n_calibration_bins 20
 ```
 
-**Section 4.3 - Anti-Overfitting & Adaptive Training flags:**
+**Complete CLI Arguments Reference:**
+
+**Dataset & Data Options:**
+- `--dataset`: Dataset name (mnist, fashionmnist, cifar100, caltech101, intel, mit, imagenet)
+- `--input_size`: Input image size (default: 224)
+- `--batch_size`: Batch size for training/validation (default: 32)
+- `--val`: Enable validation set (split from training data)
+- `--val_size`: Validation set size as fraction of training data (default: 0.2)
+
+**Model Options:**
+- `--model_name`: Model architecture (alexnet, lenet, vgg16, vgg16_bn, resnet18/34/50/101, mobilenetv3_s/l, efficientnetv2_s/m/l, vit, convnextv2_t/b)
+- `--dropout_rate`: Dropout rate (default: 0.4)
+- `--pretrained_path`: Path to pretrained checkpoint
+
+**Training Hyperparameters:**
+- `--num_epochs`: Number of training epochs (default: 25)
+- `--learning_rate`: Learning rate (default: 0.001)
+- `--optimizer`: Optimizer (adam, adamw, sgd)
+- `--criterion`: Loss function (cross_entropy, mse, hinge)
+- `--scheduler`: Learning rate scheduler (constant, linear, cosine, step, onecycle)
+- `--num_warmup_steps`: Number of warmup steps (default: 500)
+
+**Learning Rate Schedulers:**
+- `--scheduler constant`: No scheduler (constant learning rate)
+- `--scheduler linear`: Linear decay with warmup
+- `--scheduler cosine`: Cosine annealing with warmup
+- `--scheduler step`: Step decay with warmup
+  - `--step_size`: Step size in epochs (default: 10)
+  - `--step_gamma`: Gamma multiplier (default: 0.1)
+- `--scheduler onecycle`: OneCycleLR (handles warmup internally)
+  - `--max_lr_factor`: Max LR multiplier (default: 10.0)
+
+**Section 4.3 - Anti-Overfitting & Adaptive Training:**
 - `--use_mixup`: Enable Mixup data augmentation
 - `--mixup_alpha`: Mixup alpha parameter (default: 0.2)
 - `--use_cutmix`: Enable CutMix data augmentation
@@ -165,10 +245,17 @@ python train.py --config config/resnet50_adamw.json --epochs 100 \
 - `--use_sam`: Enable SAM (Sharpness-Aware Minimization) optimizer
 - `--sam_rho`: SAM rho parameter for perturbation (default: 0.05)
 - `--label_smoothing`: Label smoothing factor (default: 0.0)
-- `--adaptive_training`: Enable adaptive training (auto-adjust WD, aug, SAM based on generalization gap)
+- `--adaptive_training`: Enable adaptive training (auto-adjust WD, aug, SAM)
 - `--adaptive_check_interval`: Check interval for adaptive training in epochs (default: 5)
 
-**Section 6 - Evaluation flags:**
+**ConvNeXt V2 Self-Supervised Pretraining (FCMAE):**
+- `--conv_pretrain`: Enable FCMAE pretraining for ConvNeXt V2 models
+- `--conv_pretrain_epochs`: Number of pretraining epochs (default: 50)
+- `--conv_mask_ratio`: Masking ratio for FCMAE (default: 0.6)
+- `--conv_pretrain_lr`: Pretraining learning rate (default: 1.5e-4)
+- `--conv_pretrain_wd`: Pretraining weight decay (default: 0.05)
+
+**Section 6 - Comprehensive Evaluation:**
 - `--eval_robustness`: Robustness testing with noise injection (Section 6.1)
 - `--eval_calibration`: ECE and reliability diagram (Section 6.2)
 - `--eval_bootstrap`: Bootstrap confidence interval (Section 6.3)
@@ -176,10 +263,31 @@ python train.py --config config/resnet50_adamw.json --epochs 100 \
 - `--n_bootstrap`: Number of bootstrap samples (default: 1000)
 - `--n_calibration_bins`: Number of calibration bins (default: 15)
 
-**Section 2 - Efficiency Benchmark flags:**
+**Section 2 - Efficiency Benchmark:**
 - `--eval_efficiency`: Benchmark efficiency (throughput, latency, VRAM, model size)
 
+**Logging & Monitoring:**
+- `--use_wandb`: Enable Weights & Biases logging
+- `--wandb_project`: W&B project name (default: 'dl20251-cv')
+- `--wandb_entity`: W&B entity/team name
+- `--wandb_run_name`: Custom W&B run name
+- `--use_tensorboard`: Enable TensorBoard logging
+- `--tensorboard_log_dir`: TensorBoard log directory (default: 'logs')
+
+**Other Options:**
+- `--fasttrain`: Enable mixed precision training (torch.cuda.amp)
+- `--resume`: Path to checkpoint to resume training from
+- `--seed`: Random seed for reproducibility (default: 42)
+- `--use_class_weights`: Use class weights for imbalanced datasets
+- `--weight_type`: Type of class weights ('inverse' or 'sqrt_inverse')
+- `--config`: Path to JSON config file (overrides defaults)
+
 All evaluation results are saved to the experiment directory and automatically logged to W&B/TensorBoard if enabled.
+
+**Weight Initialization:**
+- All models now use **He initialization** (kaiming_normal_) for Conv2d and Linear layers
+- BatchNorm layers initialized with weight=1, bias=0
+- Improves convergence for ReLU-based architectures
 
 Fine-tune a checkpoint:
 
@@ -324,9 +432,19 @@ python hpo.py --mode group --trials 70 --n_jobs 4 --storage hpo_results.db
 
 # 4. Train with selected config + FULL comprehensive evaluation
 python train.py --config config/hpo/resnet50_hpo_optimized.json \
-    --epochs 100 --batch_size 32 \
-    --eval_full \
+    --num_epochs 100 --batch_size 32 \
+    --val --val_size 0.2 \
+    --eval_full --eval_efficiency \
     --use_tensorboard --use_wandb
+
+# 4b. Train ConvNeXt V2 with FCMAE pretraining + validation split
+python train.py --model_name convnextv2_t --dataset cifar100 \
+    --conv_pretrain --conv_pretrain_epochs 50 \
+    --num_epochs 100 --batch_size 32 \
+    --val --val_size 0.2 \
+    --use_mixup --use_cutmix --use_sam \
+    --eval_full --eval_efficiency \
+    --use_wandb
 
 # 5. (Optional) Standalone evaluation if needed later
 python evaluate.py --model logs/resnet50_exp/best.pth \
@@ -361,7 +479,85 @@ All metrics are saved to the experiment directory and logged to W&B/TensorBoard.
 
 ---
 
-## 12. Next steps & customization
+## 12. Complete Training Examples
+
+**Example 1: Basic ResNet50 training with validation split**
+```bash
+python train.py --model_name resnet50 --dataset cifar100 \
+    --num_epochs 100 --batch_size 64 \
+    --optimizer adamw --learning_rate 0.001 \
+    --scheduler cosine --num_warmup_steps 500 \
+    --val --val_size 0.2 \
+    --use_tensorboard
+```
+
+**Example 2: ConvNeXt V2 with FCMAE pretraining + full evaluation**
+```bash
+python train.py --model_name convnextv2_t --dataset intel \
+    --conv_pretrain --conv_pretrain_epochs 50 \
+    --conv_mask_ratio 0.6 \
+    --num_epochs 100 --batch_size 32 \
+    --optimizer adamw --learning_rate 0.001 \
+    --scheduler cosine \
+    --val --val_size 0.2 \
+    --use_mixup --mixup_alpha 0.2 \
+    --use_cutmix --cutmix_alpha 1.0 --cutmix_prob 0.5 \
+    --use_sam --sam_rho 0.05 \
+    --adaptive_training \
+    --eval_full --eval_efficiency \
+    --use_wandb --use_tensorboard
+```
+
+**Example 3: VGG16 with step scheduler and class weights**
+```bash
+python train.py --model_name vgg16_bn --dataset caltech101 \
+    --num_epochs 150 --batch_size 32 \
+    --optimizer sgd --learning_rate 0.01 \
+    --scheduler step --step_size 30 --step_gamma 0.1 \
+    --val --val_size 0.15 \
+    --use_class_weights --weight_type inverse \
+    --dropout_rate 0.5 \
+    --fasttrain
+```
+
+**Example 4: EfficientNetV2 with OneCycle scheduler + Mixup/CutMix**
+```bash
+python train.py --model_name efficientnetv2_s --dataset cifar100 \
+    --num_epochs 200 --batch_size 64 \
+    --optimizer adamw --learning_rate 0.0005 \
+    --scheduler onecycle --max_lr_factor 15.0 \
+    --val --val_size 0.2 \
+    --use_mixup --mixup_alpha 0.3 \
+    --use_cutmix --cutmix_alpha 1.0 --cutmix_prob 0.5 \
+    --label_smoothing 0.1 \
+    --eval_full --eval_efficiency \
+    --fasttrain --use_wandb
+```
+
+**Example 5: Resume training from checkpoint**
+```bash
+python train.py --model_name resnet50 --dataset cifar100 \
+    --resume results/demo1_cifar100_resnet50_adamw_20251229/checkpoint_final.pth \
+    --num_epochs 150 --batch_size 64 \
+    --val --val_size 0.2 \
+    --eval_full
+```
+
+**Example 6: HPO-optimized config with all features**
+```bash
+python train.py --config config/hpo/resnet50_hpo_optimized.json \
+    --num_epochs 100 --batch_size 32 \
+    --val --val_size 0.2 \
+    --use_mixup --use_cutmix --use_sam \
+    --adaptive_training --adaptive_check_interval 5 \
+    --eval_full --eval_efficiency \
+    --n_bootstrap 2000 --n_calibration_bins 20 \
+    --fasttrain --use_wandb --use_tensorboard
+```
+
+---
+
+## 13. Next steps & customization
 
 - Adjust HPO search space in `hpo.py` for new parameters.
 - If you add new data augmentations, expose flags in `trainer.py` and update config schema.

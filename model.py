@@ -56,6 +56,20 @@ class LeNet(nn.Module):
         # Các lớp fully connected
         self.fc1 = nn.Linear(120, 84)
         self.fc2 = nn.Linear(84, self.num_classes)
+        
+        # He initialization
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
+    
     def forward(self, x):
         # Các bước truyền dữ liệu qua các lớp
         x = self.conv1(x)
@@ -169,6 +183,19 @@ class AlexNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(4096, self.num_classes),
         )
+        
+        # He initialization
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         x = self.features(x)
@@ -257,13 +284,12 @@ class VGG16(nn.Module):
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, np.sqrt(2. / n))
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
-                    m.bias.data.zero_()
+                    nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
-                m.weight.data.normal_(0, 0.01)
-                m.bias.data.zero_()
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
 class VGG16BatchNorm(nn.Module):
     def __init__(self, num_classes=1000, in_channels = 3, dropout_rate=0.5, input_size = 227):
         super(VGG16BatchNorm, self).__init__()
@@ -335,6 +361,23 @@ class VGG16BatchNorm(nn.Module):
         self.fc2 = nn.Linear(4096, 4096)
         self.dropout2 = nn.Dropout(p=dropout_rate)
         self.fc3 = nn.Linear(4096, self.num_classes)
+        
+        # He initialization
+        self._initialize_weights()
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
+    
     def forward(self, x):
         x = self.layer1(x)
         x = self.layer2(x)

@@ -4,7 +4,7 @@ from evaluate import evaluate_model
 from trainer import Trainer, count_images_per_class, calculate_class_weights
 from data_preprocess import prepare_data, prepare_builtin_data
 from model import *
-from models_dense import convnextv2_tiny, convnextv2_base
+from models_dense import convnextv2_tiny, convnextv2_base, FCMAE_Dense
 from benchmark_efficiency import benchmark_efficiency
 import torch
 import torch.nn as nn
@@ -78,6 +78,129 @@ def _flatten_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return flat
 
 
+def pretrain_convnext_fcmae(encoder, dataloaders, args, device, exp_dir):
+    """
+    Self-supervised pretraining using FCMAE for ConvNeXt V2.
+    
+    Args:
+        encoder: ConvNeXt V2 encoder model (without classification head)
+        dataloaders: Dictionary with 'train' dataloader
+        args: Arguments containing pretraining hyperparameters
+        device: Device to train on
+        exp_dir: Experiment directory for saving checkpoints
+    
+    Returns:
+        Pretrained encoder state_dict
+    """
+    print(f"\n{'='*60}")
+    print(f"FCMAE SELF-SUPERVISED PRETRAINING")
+    print(f"Epochs: {args.conv_pretrain_epochs}")
+    print(f"Mask Ratio: {args.conv_mask_ratio}")
+    print(f"Learning Rate: {args.conv_pretrain_lr}")
+    print(f"Weight Decay: {args.conv_pretrain_wd}")
+    print(f"{'='*60}\n")
+    
+    # Create FCMAE model
+    fcmae_model = FCMAE_Dense(
+        encoder=encoder,
+        mask_ratio=args.conv_mask_ratio,
+        decoder_embed_dim=512,
+        decoder_depth=1,
+        patch_size=32
+    )
+    fcmae_model.to(device)
+    
+    # Optimizer for pretraining
+    pretrain_optimizer = optim.AdamW(
+        fcmae_model.parameters(),
+        lr=args.conv_pretrain_lr,
+        betas=(0.9, 0.95),
+        weight_decay=args.conv_pretrain_wd
+    )
+    
+    # Scheduler for pretraining
+    warmup_epochs = min(5, args.conv_pretrain_epochs // 10)
+    pretrain_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        pretrain_optimizer,
+        T_max=args.conv_pretrain_epochs - warmup_epochs,
+        eta_min=1e-6
+    )
+    
+    train_loader = dataloaders['train']
+    
+    # Pretraining loop
+    for epoch in range(args.conv_pretrain_epochs):
+        # Warmup
+        if epoch < warmup_epochs:
+            lr_scale = min(1., float(epoch + 1) / warmup_epochs)
+            for pg in pretrain_optimizer.param_groups:
+                pg['lr'] = args.conv_pretrain_lr * lr_scale
+        
+        fcmae_model.train()
+        running_loss = 0.0
+        current_lr = pretrain_optimizer.param_groups[0]['lr']
+        
+        print(f"Pretrain Epoch [{epoch+1}/{args.conv_pretrain_epochs}] (LR: {current_lr:.6f})")
+        
+        for i, data in enumerate(train_loader):
+            if isinstance(data, (tuple, list)):
+                images = data[0]
+            else:
+                images = data
+            
+            images = images.to(device, non_blocking=True)
+            
+            pretrain_optimizer.zero_grad()
+            loss, _, _ = fcmae_model(images, mask_ratio=args.conv_mask_ratio)
+            loss.backward()
+            pretrain_optimizer.step()
+            
+            running_loss += loss.item()
+            
+            if (i + 1) % 50 == 0:
+                avg_loss = running_loss / 50
+                print(f"  Batch [{i+1}/{len(train_loader)}] Loss: {avg_loss:.4f}")
+                running_loss = 0.0
+        
+        if epoch >= warmup_epochs:
+            pretrain_scheduler.step()
+        
+        epoch_loss = running_loss / len(train_loader) if len(train_loader) > 0 else 0
+        print(f"  Epoch {epoch+1} Average Loss: {epoch_loss:.4f}\n")
+    
+    # Save pretrained encoder
+    pretrain_save_path = os.path.join(exp_dir, 'fcmae_pretrained_encoder.pth')
+    
+    # Extract encoder state dict
+    if isinstance(fcmae_model, (nn.DataParallel, nn.parallel.DistributedDataParallel)):
+        model_state = fcmae_model.module.state_dict()
+    else:
+        model_state = fcmae_model.state_dict()
+    
+    encoder_state = {}
+    for k, v in model_state.items():
+        if k.startswith('encoder.'):
+            new_key = k.replace('encoder.', '')
+            encoder_state[new_key] = v
+    
+    torch.save({
+        'epoch': args.conv_pretrain_epochs,
+        'model_state_dict': encoder_state,
+        'config': {
+            'mask_ratio': args.conv_mask_ratio,
+            'pretrain_lr': args.conv_pretrain_lr,
+            'pretrain_wd': args.conv_pretrain_wd,
+            'pretrain_epochs': args.conv_pretrain_epochs
+        }
+    }, pretrain_save_path)
+    
+    print(f"\n{'='*60}")
+    print(f"PRETRAINING COMPLETE")
+    print(f"Encoder weights saved to: {pretrain_save_path}")
+    print(f"{'='*60}\n")
+    
+    return encoder_state
+
 def parse_args(input_args=None):
     parser = argparse.ArgumentParser(description="Example training script")
     parser.add_argument('--config', type=str, default=None, help='Path to a JSON config file')
@@ -109,6 +232,9 @@ def parse_args(input_args=None):
     parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
     parser.add_argument('--fasttrain', action='store_true', help='Enable fast training with mixed precision (torch.cuda.amp)')
     parser.add_argument('--resume', type=str, default=None, help='Path to checkpoint to resume training from')
+    # Validation set options
+    parser.add_argument('--val', action='store_true', help='Enable validation set (split from training data)')
+    parser.add_argument('--val_size', type=float, default=0.2, help='Validation set size as fraction of training data (default: 0.2)')
     # W&B logging options
     parser.add_argument('--use_wandb', action='store_true', help='Enable Weights & Biases logging')
     parser.add_argument('--wandb_project', type=str, default='dl20251-cv', help='W&B project name')
@@ -138,6 +264,13 @@ def parse_args(input_args=None):
     parser.add_argument('--eval_efficiency', action='store_true', help='Benchmark efficiency (throughput, latency, VRAM, model size)')
     parser.add_argument('--n_bootstrap', type=int, default=1000, help='Number of bootstrap samples for CI')
     parser.add_argument('--n_calibration_bins', type=int, default=15, help='Number of bins for ECE calculation')
+    
+    # ConvNeXt V2 Self-Supervised Pretraining
+    parser.add_argument('--conv_pretrain', action='store_true', help='Enable FCMAE self-supervised pretraining for ConvNeXt V2 models')
+    parser.add_argument('--conv_pretrain_epochs', type=int, default=50, help='Number of epochs for ConvNeXt V2 pretraining')
+    parser.add_argument('--conv_mask_ratio', type=float, default=0.6, help='Masking ratio for FCMAE pretraining')
+    parser.add_argument('--conv_pretrain_lr', type=float, default=1.5e-4, help='Learning rate for ConvNeXt V2 pretraining')
+    parser.add_argument('--conv_pretrain_wd', type=float, default=0.05, help='Weight decay for ConvNeXt V2 pretraining')
 
     # First, parse arguments to identify which were explicitly provided by the user
     # We'll use parse_known_args to get the namespace and also track what was provided
@@ -237,6 +370,33 @@ def main(args):
             wandb_run = None
     if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
+        
+        # Split training data into train/val if --val is enabled
+        if args.val:
+            from torch.utils.data import random_split
+            train_dataset = dataloaders['train'].dataset
+            train_size = int((1 - args.val_size) * len(train_dataset))
+            val_size = len(train_dataset) - train_size
+            
+            train_subset, val_subset = random_split(
+                train_dataset, [train_size, val_size],
+                generator=torch.Generator().manual_seed(args.seed)
+            )
+            
+            dataloaders['train'] = torch.utils.data.DataLoader(
+                train_subset, batch_size=args.batch_size, shuffle=True, num_workers=4
+            )
+            dataloaders['val'] = torch.utils.data.DataLoader(
+                val_subset, batch_size=args.batch_size, shuffle=False, num_workers=4
+            )
+            
+            dataset_sizes['train'] = len(train_subset)
+            dataset_sizes['val'] = len(val_subset)
+            
+            print(f"\n[VALIDATION SPLIT ENABLED]")
+            print(f"Original training size: {len(train_dataset)}")
+            print(f"New training size: {dataset_sizes['train']}")
+            print(f"Validation size: {dataset_sizes['val']} ({args.val_size*100:.1f}%)\n")
     elif args.dataset in ['intel', 'mit', 'imagenet']:
         if args.dataset == 'intel':
             train_dir = 'data/intel_image/seg_train/seg_train'
@@ -261,6 +421,33 @@ def main(args):
                 'data/imagenet/val_data',
             ]
         dataloaders, dataset_sizes, class_names, num_classes = prepare_data(train_dir= train_dir, test_dir= test_dir, input_size= args.input_size, batch_size= args.batch_size, dataset=args.dataset)
+        
+        # Split training data into train/val if --val is enabled
+        if args.val:
+            from torch.utils.data import random_split
+            train_dataset = dataloaders['train'].dataset
+            train_size = int((1 - args.val_size) * len(train_dataset))
+            val_size = len(train_dataset) - train_size
+            
+            train_subset, val_subset = random_split(
+                train_dataset, [train_size, val_size],
+                generator=torch.Generator().manual_seed(args.seed)
+            )
+            
+            dataloaders['train'] = torch.utils.data.DataLoader(
+                train_subset, batch_size=args.batch_size, shuffle=True, num_workers=4
+            )
+            dataloaders['val'] = torch.utils.data.DataLoader(
+                val_subset, batch_size=args.batch_size, shuffle=False, num_workers=4
+            )
+            
+            dataset_sizes['train'] = len(train_subset)
+            dataset_sizes['val'] = len(val_subset)
+            
+            print(f"\n[VALIDATION SPLIT ENABLED]")
+            print(f"Original training size: {len(train_dataset)}")
+            print(f"New training size: {dataset_sizes['train']}")
+            print(f"Validation size: {dataset_sizes['val']} ({args.val_size*100:.1f}%)\n")
     else:
         raise ValueError(f"Dataset {args.dataset} not recognized.")
     print(f"Dataset sizes: {dataset_sizes}")
@@ -298,7 +485,17 @@ def main(args):
         model = EfficientNetV2(version='l', num_classes=num_classes, dropout_rate=args.dropout_rate)
     elif args.model_name == 'convnextv2_t':
         model = convnextv2_tiny(num_classes=num_classes, drop_path_rate=args.dropout_rate)
-        if args.pretrained_path:
+        
+        # Self-supervised pretraining with FCMAE
+        if args.conv_pretrain:
+            print("\n[INFO] Starting FCMAE self-supervised pretraining for ConvNeXt V2 Tiny...")
+            # Create encoder without classification head for pretraining
+            encoder = convnextv2_tiny(num_classes=0, drop_path_rate=args.dropout_rate)
+            pretrained_state = pretrain_convnext_fcmae(encoder, dataloaders, args, device, os.path.join(result_path, exp_name))
+            # Load pretrained encoder weights into supervised model (excluding head)
+            model.load_state_dict(pretrained_state, strict=False)
+            print("[INFO] Pretrained encoder weights loaded into supervised model\n")
+        elif args.pretrained_path:
             print(f"Loading pretrained checkpoint from {args.pretrained_path}")
             checkpoint = torch.load(args.pretrained_path, map_location='cpu')
             # Handle different checkpoint formats
@@ -316,7 +513,17 @@ def main(args):
             print("Pretrained weights loaded successfully (head layer excluded)")
     elif args.model_name == 'convnextv2_b':
         model = convnextv2_base(num_classes=num_classes, drop_path_rate=args.dropout_rate)
-        if args.pretrained_path:
+        
+        # Self-supervised pretraining with FCMAE
+        if args.conv_pretrain:
+            print("\n[INFO] Starting FCMAE self-supervised pretraining for ConvNeXt V2 Base...")
+            # Create encoder without classification head for pretraining
+            encoder = convnextv2_base(num_classes=0, drop_path_rate=args.dropout_rate)
+            pretrained_state = pretrain_convnext_fcmae(encoder, dataloaders, args, device, os.path.join(result_path, exp_name))
+            # Load pretrained encoder weights into supervised model (excluding head)
+            model.load_state_dict(pretrained_state, strict=False)
+            print("[INFO] Pretrained encoder weights loaded into supervised model\n")
+        elif args.pretrained_path:
             print(f"Loading pretrained checkpoint from {args.pretrained_path}")
             checkpoint = torch.load(args.pretrained_path, map_location='cpu')
             # Handle different checkpoint formats
