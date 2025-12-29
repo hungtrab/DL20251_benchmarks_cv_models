@@ -207,7 +207,7 @@ def parse_args(input_args=None):
     # parser.add_argument('--train_dir', type=str, help='Path to the training data directory')
     # parser.add_argument('--test_dir', type=str, help='Path to the testing data directory')
     # parser.add_argument('--mnist_data_dir', type=str, default=None, help='Directory to store MNIST data')
-    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101'],
+    parser.add_argument('--dataset', type=str, default='mnist', choices=['mnist', 'intel', 'fashionmnist', 'cifar100', 'mit', 'imagenet', 'caltech101', 'cifar100_224q'],
                         help='Dataset to use for training and evaluation')
     parser.add_argument('--input_size', type=int, default=224, help='Input size for the model')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training and validation')
@@ -368,7 +368,7 @@ def main(args):
         except Exception as e:
             print(f"W&B init failed: {e}. Continuing without W&B.")
             wandb_run = None
-    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101']:
+    if args.dataset in ['mnist', 'fashionmnist', 'cifar100', 'caltech101', 'cifar100_224']:
         dataloaders, dataset_sizes, class_names, num_classes = prepare_builtin_data(data_dir=f"data/{args.dataset}", batch_size=args.batch_size, dataset=args.dataset)
         
         # Split training data into train/val if --val is enabled
